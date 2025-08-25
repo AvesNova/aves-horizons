@@ -8,7 +8,7 @@ from utils.config import Actions
 class Ships:
     def __init__(self, n_ships: int, world_size: tuple):
         # Static
-        self.id = (torch.arange(0, n_ships, 1),)
+        self.id = torch.arange(0, n_ships, 1)
 
         self.thrust = torch.full((n_ships,), 1.0)
         self.forward_boost = torch.full((n_ships,), 1.0)
@@ -38,27 +38,30 @@ class Ships:
 
 
 class ShipPhysics(nn.Module):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, dt=0.016, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.dt = dt
 
     def forward(self, ships: Ships, actions: torch.Tensor):
         left = actions[:, Actions.left]
         right = actions[:, Actions.right]
 
-        is_turning = left | right
+        is_turn_drag = left | right
+        is_turning = left ^ right
+        turn_direction = left.int() - right.int()
+
         is_sharp_turn = actions[:, Actions.sharp_turn]
         speed = torch.abs(ships.velocity)
 
         # Aero forces
         forward = (
-            ~is_turning * ships.no_turn_drag + is_turning
-            & ~is_sharp_turn * ships.normal_turn_drag_coef + is_turning
+            ~is_turn_drag * ships.no_turn_drag + is_turn_drag
+            & ~is_sharp_turn * ships.normal_turn_drag_coef + is_turn_drag
             & is_sharp_turn * ships.sharp_turn_drag_coef
         )
 
-        turn_direction = left.int() - right.int()
-        perpendicular = ((left ^ right).int() * turn_direction) * (
-            ~is_sharp_turn * ships.normal_turn_lift_coef + is_turning
+        perpendicular = (is_turning.int() * turn_direction) * (
+            ~is_sharp_turn * ships.normal_turn_lift_coef + is_turn_drag
             & is_sharp_turn * ships.sharp_turn_lift_coef
         )
 
@@ -66,8 +69,8 @@ class ShipPhysics(nn.Module):
 
         # Thrust forces
         thrust_magnitude = ships.thrust + (
-            ships.forward_boost * actions[Actions.forward]
-            + ships.backward_boost * actions[Actions.backward]
+            ships.forward_boost * actions[:, Actions.forward]
+            + ships.backward_boost * actions[:, Actions.backward]
         )
 
         turn_angle = (
@@ -81,8 +84,16 @@ class ShipPhysics(nn.Module):
             torch.ones_like(ships.velocity),  # Default direction when stationary
         )
 
-        ships.orientation = velocity_direction * torch.exp(1j * turn_angle)
+        ships.orientation[is_turning] = velocity_direction[is_turning] * torch.exp(
+            1j * turn_angle[is_turning]
+        )
 
-        thrust_force = thrust_magnitude * ships.orientation / torch.norm(ships.velocity)
+        thrust_force = thrust_magnitude * ships.orientation
 
         acceleration = aero_force + thrust_force  # m = 1 for now
+
+        # Euler integration
+        ships.velocity += acceleration * self.dt
+        ships.position += ships.velocity * self.dt
+
+        return ships
