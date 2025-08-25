@@ -5,7 +5,7 @@ from rendering.pygame_renderer import PygameRenderer
 
 def main():
     # Initialize environment and renderer
-    env = Environment(n_ships=2, n_obstacles=5)
+    env = Environment(n_ships=3, n_obstacles=5)
     renderer = PygameRenderer()
     
     # Reset environment

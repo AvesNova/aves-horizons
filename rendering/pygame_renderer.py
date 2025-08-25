@@ -19,7 +19,11 @@ class PygameRenderer:
         result = {}
         for key, value in nested_dict.items():
             if isinstance(value, torch.Tensor):
-                result[key] = value.detach().cpu().tolist()
+                if value.dtype.is_complex:
+                    # Convert complex tensor to [real, imag] pairs
+                    result[key] = torch.stack([value.real, value.imag], dim=-1).detach().cpu().tolist()
+                else:
+                    result[key] = value.detach().cpu().tolist()
             elif isinstance(value, dict):
                 result[key] = PygameRenderer.tensors_to_numpy(value)
             else:
@@ -46,13 +50,15 @@ class PygameRenderer:
         
         # Draw ships
         for i, ship_id in enumerate(ships['id']):
-            pos = ships['position'][i]
-            rotation = ships['rotation'][i]
+            pos = ships['position'][i]  # Now [x, y] from complex conversion
+            rotation = ships['rotation'][i]  # Now [cos, sin] from complex conversion
             radius = ships['radius'][i]
             health = ships['health'][i]
             
+            # Get rotation angle from complex unit vector
+            angle = math.atan2(rotation[1], rotation[0])  # atan2(sin, cos)
+            
             # Draw ship as a triangle
-            angle = rotation
             points = []
             for j in range(3):
                 point_angle = angle + j * 2 * math.pi / 3
@@ -74,11 +80,11 @@ class PygameRenderer:
         
         # # Draw projectiles
         # for proj in projectiles:
-        #     pos = proj['position']
+        #     pos = proj['position']  # Now [x, y] from complex conversion
         #     pygame.draw.circle(self.screen, (255, 255, 0), (int(pos[0]), int(pos[1])), 3)
         
         # Draw debug info
-        debug_text = f"Ships: {12.12} | Projectiles: {len(projectiles)}"
+        debug_text = f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}"
         text_surface = self.font.render(debug_text, True, (255, 255, 255))
         self.screen.blit(text_surface, (10, 10))
         
