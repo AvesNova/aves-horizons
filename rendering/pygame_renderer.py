@@ -222,7 +222,7 @@ class PygameRenderer:
             self.screen.blits(debug_surfaces)
 
         pygame.display.flip()
-        self.clock.tick(60)
+        self.clock.tick(50)  # Match the environment's 50 FPS
 
     def close(self):
         pygame.quit()

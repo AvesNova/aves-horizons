@@ -50,17 +50,21 @@ class ShipTransformerPolicy(ActorCriticPolicy):
         num_layers=3,
         **kwargs,  # Accept additional kwargs from PPO
     ):
-        # Need to reshape observation space for transformer
+        # Store transformer parameters
         self.n_ships = n_ships
         self.obs_per_ship = obs_per_ship
         self.d_model = d_model
         self.nhead = nhead
         self.num_layers = num_layers
 
+        # Calculate transformer output size
+        self.transformer_output_size = self.d_model * self.n_ships
+
         # Create the network architecture for the parent class
+        # The input size to the first layer will be set correctly by overriding _build_mlp_extractor
         net_arch = {
-            "pi": [self.d_model * self.n_ships, 256, 128, 64],  # Policy network
-            "vf": [self.d_model * self.n_ships, 256, 128, 64],  # Value network
+            "pi": [256, 128, 64],  # Policy network hidden layers
+            "vf": [256, 128, 64],  # Value network hidden layers
         }
 
         # Filter out kwargs that we don't pass to parent
@@ -97,25 +101,37 @@ class ShipTransformerPolicy(ActorCriticPolicy):
             ]
         )
 
-    def _build_mlp_extractor(self, *args, **kwargs) -> None:
-        """Let the parent class build the MLP extractor."""
-        super()._build_mlp_extractor(*args, **kwargs)
+    def _build_mlp_extractor(self) -> None:
+        """Build MLP networks with correct input size for transformer output."""
+        from stable_baselines3.common.torch_layers import MlpExtractor
+
+        # Build MLP with transformer output size as input
+        self.mlp_extractor = MlpExtractor(
+            feature_dim=self.transformer_output_size,
+            net_arch=self.net_arch,
+            activation_fn=self.activation_fn,
+            device=self.device,
+        )
 
     def extract_features(self, obs: torch.Tensor) -> torch.Tensor:
         """Extract features through transformer before MLP networks."""
         # Calculate expected total observation size
         expected_size = self.n_ships * self.obs_per_ship
-        
+
         # Handle both single and batch observations
         if len(obs.shape) == 1:
             # Single observation
             if obs.shape[0] != expected_size:
-                raise ValueError(f"Expected observation size {expected_size}, got {obs.shape[0]}")
+                raise ValueError(
+                    f"Expected observation size {expected_size}, got {obs.shape[0]}"
+                )
             obs = obs.view(1, self.n_ships, self.obs_per_ship)
         else:
             # Batch of observations
             if obs.shape[1] != expected_size:
-                raise ValueError(f"Expected observation size {expected_size}, got {obs.shape[1]}")
+                raise ValueError(
+                    f"Expected observation size {expected_size}, got {obs.shape[1]}"
+                )
             obs = obs.view(-1, self.n_ships, self.obs_per_ship)
 
         # Embed each ship's state
@@ -128,16 +144,47 @@ class ShipTransformerPolicy(ActorCriticPolicy):
         # Flatten for MLP heads
         return x.reshape(obs.shape[0], -1)
 
+    def get_distribution(self, obs: torch.Tensor):
+        """Get action distribution using transformer feature extraction."""
+        features = self.extract_features(obs)
+        latent_pi = self.mlp_extractor.forward_actor(features)
+        return self._get_action_dist_from_latent(latent_pi)
+
+    def predict_values(self, obs: torch.Tensor) -> torch.Tensor:
+        """Predict values using transformer feature extraction."""
+        features = self.extract_features(obs)
+        latent_vf = self.mlp_extractor.forward_critic(features)
+        return self.value_net(latent_vf)
+
+    def evaluate_actions(self, obs: torch.Tensor, actions: torch.Tensor) -> tuple:
+        """Evaluate actions using transformer feature extraction."""
+        features = self.extract_features(obs)
+        latent_pi, latent_vf = self.mlp_extractor(features)
+
+        distribution = self._get_action_dist_from_latent(latent_pi)
+        log_prob = distribution.log_prob(actions)
+        values = self.value_net(latent_vf)
+        entropy = distribution.entropy()
+
+        return values, log_prob, entropy
+
     def forward(self, obs: torch.Tensor, deterministic: bool = False):
         """Forward pass through transformer policy."""
         # Extract features using transformer
         features = self.extract_features(obs)
-        
-        # Get distribution and values from parent's network
-        distribution = self._get_action_dist_from_latent(self.action_net(features))
-        values = self.value_net(features)
-        
-        return distribution, values, None
+
+        # Pass through MLP extractor to get latent representations
+        latent_pi, latent_vf = self.mlp_extractor(features)
+
+        # Get distribution and values from the latent representations
+        distribution = self._get_action_dist_from_latent(latent_pi)
+        values = self.value_net(latent_vf)
+
+        # Sample actions from distribution
+        actions = distribution.get_actions(deterministic=deterministic)
+        log_prob = distribution.log_prob(actions)
+
+        return actions, values, log_prob
 
 
 def make_env(n_ships=8, render_mode=None):
@@ -147,6 +194,8 @@ def make_env(n_ships=8, render_mode=None):
 
 def train_ship_agent(total_timesteps=1000000, n_ships=8, n_envs=8):
     """Train a ship agent using PPO with transformer policy."""
+    from stable_baselines3.common.monitor import Monitor
+
     # Create vectorized environment
     env = make_env(n_ships=n_ships)()
 
@@ -176,8 +225,10 @@ def train_ship_agent(total_timesteps=1000000, n_ships=8, n_envs=8):
     )
 
     # Set up callbacks
+    # Wrap evaluation environment with Monitor to avoid warning
+    eval_env = Monitor(make_env(n_ships=n_ships)())
     eval_callback = EvalCallback(
-        eval_env=make_env(n_ships=n_ships)(),
+        eval_env=eval_env,
         n_eval_episodes=10,
         eval_freq=10000,
         log_path="./logs/",

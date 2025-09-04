@@ -218,11 +218,11 @@ class Ships:
         initial_attitude: complex = 1 + 0j,  # Facing right
         # Thrust system defaults
         thrust: float = 10.0,
-        forward_boost: float = 5.0,
+        forward_boost: float = 8.0,
         backward_boost: float = 0.0,
         base_energy_cost: float = -10.0,
-        forward_energy_cost: float = 50.0,
-        backward_energy_cost: float = -10.0,
+        forward_energy_cost: float = 40.0,
+        backward_energy_cost: float = -20.0,
         # Projectile system defaults
         max_projectiles: int = 16,
         projectile_speed: float = 500.0,

@@ -1,0 +1,5 @@
+.vscode/
+.pytest_cache/
+best_model/
+logs/
+__pycache__/

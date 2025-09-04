@@ -19,7 +19,10 @@ class ShipEnv(gym.Env):
     - Support for multiple agents
     """
 
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
+    metadata = {
+        "render_modes": ["human", "rgb_array"],
+        "render_fps": 50,
+    }
 
     def __init__(self, render_mode=None, n_ships=8, n_obstacles=0):
         super().__init__()

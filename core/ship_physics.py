@@ -50,7 +50,7 @@ class ShipPhysics(nn.Module):
 
     def __init__(
         self,
-        target_timestep: float = 0.016,
+        target_timestep: float = 0.02,  # 50 FPS
         solver: str = "dopri5",
         rtol: float = 1e-7,
         atol: float = 1e-9,
