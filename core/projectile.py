@@ -3,7 +3,7 @@ from typing import Tuple
 
 
 def update_projectiles(ships, dt: float) -> None:
-    """Update projectile positions and lifetimes.
+    """Update projectile positions, lifetimes, and ammo regeneration.
 
     Args:
         ships: Ships dataclass containing projectile state
@@ -16,6 +16,13 @@ def update_projectiles(ships, dt: float) -> None:
     ships.projectiles_lifetime -= dt
     ships.projectiles_active &= ships.projectiles_lifetime > 0
 
+    # Regenerate ammo
+    ships.ammo_count = torch.clamp(
+        ships.ammo_count + ships.ammo_regen_rate * dt,
+        min=torch.zeros_like(ships.ammo_count),
+        max=ships.max_ammo,
+    )
+
 
 def fire_projectile(ships, ship_idx: int) -> bool:
     """Attempt to fire a projectile from the specified ship.
@@ -25,9 +32,13 @@ def fire_projectile(ships, ship_idx: int) -> bool:
         ship_idx: Index of the ship firing
 
     Returns:
-        bool: True if projectile was fired, False if on cooldown
+        bool: True if projectile was fired, False if on cooldown or insufficient ammo
     """
     if ships.projectile_cooldown[ship_idx] > 0:
+        return False
+
+    # Check if we have enough ammo
+    if ships.ammo_count[ship_idx] < 1.0:
         return False
 
     # Get next projectile index for this ship
@@ -44,8 +55,9 @@ def fire_projectile(ships, ship_idx: int) -> bool:
         + ships.projectile_speed[ship_idx] * ships.attitude[ship_idx]
     )
 
-    # Update firing index and cooldown
+    # Update firing index, cooldown, and ammo count
     ships.projectile_index[ship_idx] = (idx + 1) % ships.max_projectiles
     ships.projectile_cooldown[ship_idx] = ships.firing_cooldown[ship_idx]
+    ships.ammo_count[ship_idx] -= 1.0
 
     return True

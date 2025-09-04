@@ -144,7 +144,7 @@ class PygameRenderer:
             boost = ships_object.boost[0].detach().cpu().item()
             health = ships["health"][0]
             speed = ships_object.velocity[0].abs().detach().cpu().item()
-            projectile_index = ships_object.projectile_index[0].detach().cpu().item()
+            ammo_count = ships_object.ammo_count[0].detach().cpu().item()
 
             debug_info = [
                 f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}",
@@ -155,7 +155,7 @@ class PygameRenderer:
                 f"Boost: {boost:.1f}",
                 f"Health: {health}",
                 f"Speed: {speed:.1f}",
-                f"Pojectile Index: {projectile_index}",
+                f"Ammo: {ammo_count:.1f}",
             ]
 
             for i, text in enumerate(debug_info):

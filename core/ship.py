@@ -7,7 +7,15 @@ from dataclasses import dataclass
 class Ships:
     """Physics-based ship simulation with vectorized operations for multiple ships.
 
-    Represents a collection of ships with both state variables and physics parameters.
+    Represents a collection of        # Projectile system defaults
+        max_projectiles: int = 20,
+        projectile_speed: float = 500.0,
+        projectile_damage: float = 10.0,
+        projectile_lifetime: float = 2.0,
+        firing_cooldown: float = 0.2,
+        max_ammo: float = 10.0,
+        ammo_regen_rate: float = 0.5,  # Regenerate 0.5 ammo per second
+        # Aerodynamic defaultswith both state variables and physics parameters.
     All calculations use PyTorch tensors for vectorized operations across multiple ships.
     Complex number representations efficiently handle 2D position and velocity vectors.
 
@@ -78,6 +86,9 @@ class Ships:
     projectile_damage: torch.Tensor  # Damage dealt by projectiles
     projectile_lifetime: torch.Tensor  # Maximum lifetime of projectiles
     firing_cooldown: torch.Tensor  # Minimum time between shots
+    max_ammo: torch.Tensor  # Maximum ammo capacity
+    ammo_count: torch.Tensor  # Current ammo count (can be fractional)
+    ammo_regen_rate: torch.Tensor  # Ammo regeneration per second
 
     # Aerodynamic Parameters
     no_turn_drag: torch.Tensor
@@ -214,9 +225,11 @@ class Ships:
         # Projectile system defaults
         max_projectiles: int = 16,
         projectile_speed: float = 500.0,
-        projectile_damage: float = 10.0,
+        projectile_damage: float = 20.0,
         projectile_lifetime: float = 1.0,
-        firing_cooldown: float = 0.05,
+        firing_cooldown: float = 0.04,
+        max_ammo: float = 32.0,
+        ammo_regen_rate: float = 4.0,  # Regenerate 0.5 ammo per second
         # Aerodynamic defaults
         no_turn_drag: float = 8e-4,
         normal_turn_angle: float = np.deg2rad(5.0),
@@ -291,6 +304,9 @@ class Ships:
             projectile_damage=make_tensor(projectile_damage),
             projectile_lifetime=make_tensor(projectile_lifetime),
             firing_cooldown=make_tensor(firing_cooldown),
+            max_ammo=make_tensor(max_ammo),
+            ammo_count=make_tensor(max_ammo),  # Start with full ammo
+            ammo_regen_rate=make_tensor(ammo_regen_rate),
             # Thrust system parameters
             thrust=make_tensor(thrust),
             forward_boost=make_tensor(forward_boost),
