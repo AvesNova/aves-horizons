@@ -49,6 +49,9 @@ class Environment:
         # Update projectiles
         update_projectiles(self.ships, self.target_dt)
 
+        # Check for bullet collisions
+        self._check_bullet_collisions()
+
         # Apply wrap-around for ship positions
         self.ships.position.real = torch.fmod(
             self.ships.position.real, self.world_size[0]
@@ -96,7 +99,7 @@ class Environment:
         rewards = torch.zeros(self.n_ships)
 
         # Check if episode is done
-        done = torch.any(self.ships.health <= 0)
+        done = torch.all(self.ships.health <= 0)
 
         return observation, rewards, done
 
@@ -135,6 +138,22 @@ class Environment:
                     # Simple collision response - bounce
                     self.ships.velocity[ship_idx] *= -0.5
                     self.ships.health[ship_idx] -= 1
+
+        # Check bullet-ship collisions
+        self._check_bullet_collisions()
+
+    def _check_bullet_collisions(self):
+        """Check for collisions between bullets and ships and apply damage."""
+        for ship_idx in range(self.n_ships):
+            for proj_idx in range(self.ships.max_projectiles):
+                if self.ships.projectiles_active[ship_idx, proj_idx]:
+                    proj_pos = self.ships.projectiles_position[ship_idx, proj_idx]
+                    for target_idx in range(self.n_ships):
+                        if target_idx != ship_idx and self.ships.health[target_idx] > 0:
+                            dist = torch.abs(proj_pos - self.ships.position[target_idx])
+                            if dist < self.ships.collision_radius[target_idx]:
+                                # Collision detected
+                                self.ships.health[target_idx] -= 10
 
     def get_observation(self):
         # For now, return all ship and projectile data
