@@ -193,9 +193,9 @@ class Ships:
         thrust: float = 10.0,
         forward_boost: float = 5.0,
         backward_boost: float = 0.0,
-        base_energy_cost: float = 0.0,
-        forward_energy_cost: float = 5.0,
-        backward_energy_cost: float = -2.0,
+        base_energy_cost: float = -10.0,
+        forward_energy_cost: float = 50.0,
+        backward_energy_cost: float = -10.0,
         # Aerodynamic defaults
         no_turn_drag: float = 8e-4,
         normal_turn_angle: float = np.deg2rad(5.0),

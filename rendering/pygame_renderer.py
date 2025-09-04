@@ -117,10 +117,30 @@ class PygameRenderer:
         #     pos = proj['position']  # [x, y] from complex conversion
         #     pygame.draw.circle(self.screen, (255, 255, 0), (int(pos[0]), int(pos[1])), 3)
 
-        # Draw debug info
-        debug_text = f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}"
-        text_surface = self.font.render(debug_text, True, (255, 255, 255))
-        self.screen.blit(text_surface, (10, 10))
+        # Draw debug info for ship 0
+        if len(ships["id"]) > 0:
+            pos = ships["position"][0]
+            vel = ships_object.velocity[0].detach().cpu()
+            attitude = ships["attitude"][0]
+            turn_offset = ships_object.turn_offset[0].detach().cpu().item()
+            boost = ships_object.boost[0].detach().cpu().item()
+            health = ships["health"][0]
+            speed = ships_object.velocity[0].abs().detach().cpu().item()
+
+            debug_info = [
+                f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}",
+                f"Position: ({pos[0]:.1f}, {pos[1]:.1f})",
+                f"Velocity: ({vel.real:.1f}, {vel.imag:.1f})",
+                f"Attitude: ({attitude[0]:.2f}, {attitude[1]:.2f})",
+                f"Turn Offset: {turn_offset:.1f}°",
+                f"Boost: {boost:.1f}",
+                f"Health: {health}",
+                f"Speed: {speed:.1f}",
+            ]
+
+            for i, text in enumerate(debug_info):
+                text_surface = self.font.render(text, True, (255, 255, 255))
+                self.screen.blit(text_surface, (10, 10 + i * 25))
 
         pygame.display.flip()
         self.clock.tick(60)
