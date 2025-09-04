@@ -36,6 +36,13 @@ class Ships:
             - Collision Radius: For collision detection
             - Max Boost: Maximum energy capacity
             - Max Health: Maximum health points
+
+    Lookup Tables:
+        - Turn Angles: [2, 2, 2, n_ships] indexed by [left, right, sharp]
+        - Thrust Multipliers: [2, 2, n_ships] indexed by [forward, backward]
+        - Energy Costs: [2, 2, n_ships] indexed by [forward, backward]
+        - Drag Coefficients: [2, 2, n_ships] indexed by [turning, sharp]
+        - Lift Coefficients: [2, n_ships] indexed by [sharp]
     """
 
     # Basic info
@@ -71,11 +78,100 @@ class Ships:
     max_boost: torch.Tensor
     max_health: torch.Tensor
 
+    # Lookup Tables (computed in __post_init__)
+    turn_angles: torch.Tensor  # [2, 2, 2, n_ships] - [left, right, sharp]
+    thrust_multipliers: torch.Tensor  # [2, 2, n_ships] - [forward, backward]
+    energy_costs: torch.Tensor  # [2, 2, n_ships] - [forward, backward]
+    drag_coefficients: torch.Tensor  # [2, 2, n_ships] - [turning, sharp]
+    lift_coefficients: torch.Tensor  # [2, n_ships] - [sharp]
+
     def __post_init__(self):
         # Initialize state variables that depend on other fields
         self.boost = self.max_boost.clone()
         self.health = self.max_health.clone()
         self.turn_offset = torch.zeros(self.n_ships)
+
+        # Build lookup tables from individual parameters
+        self._build_lookup_tables()
+
+    def _build_lookup_tables(self):
+        """Build efficient lookup tables for physics parameters."""
+
+        # Turn angles lookup table [2, 2, 2, n_ships]
+        # Indexed by [left, right, sharp] -> turn angle
+        self.turn_angles = torch.zeros(2, 2, 2, self.n_ships)
+
+        # Based on the control system lookup table from requirements:
+        # Pattern (L, R, S) -> Turn Offset
+        self.turn_angles[0, 0, 0, :] = 0  # 000: None -> 0°
+        self.turn_angles[0, 1, 0, :] = (
+            -self.normal_turn_angle
+        )  # 001: R -> -normal_angle
+        self.turn_angles[1, 0, 0, :] = self.normal_turn_angle  # 010: L -> +normal_angle
+        self.turn_angles[1, 1, 0, :] = 0  # 011: LR -> maintain (use 0° for lookup)
+        self.turn_angles[0, 0, 1, :] = 0  # 100: S -> 0°
+        self.turn_angles[0, 1, 1, :] = -self.sharp_turn_angle  # 101: SR -> -sharp_angle
+        self.turn_angles[1, 0, 1, :] = self.sharp_turn_angle  # 110: SL -> +sharp_angle
+        self.turn_angles[1, 1, 1, :] = 0  # 111: SLR -> maintain (use 0° for lookup)
+
+        # Thrust multipliers lookup table [2, 2, n_ships]
+        # Indexed by [forward, backward] -> thrust multiplier
+        self.thrust_multipliers = torch.zeros(2, 2, self.n_ships)
+        self.thrust_multipliers[0, 0, :] = 1.0  # 00: Neither -> base thrust (1.0x)
+        self.thrust_multipliers[0, 1, :] = self.backward_boost  # 01: Backward only
+        self.thrust_multipliers[1, 0, :] = self.forward_boost  # 10: Forward only
+        self.thrust_multipliers[1, 1, :] = 1.0  # 11: Both -> cancel out to base
+
+        # Energy costs lookup table [2, 2, n_ships]
+        # Indexed by [forward, backward] -> energy cost per timestep
+        self.energy_costs = torch.zeros(2, 2, self.n_ships)
+        self.energy_costs[0, 0, :] = self.base_energy_cost  # 00: Neither
+        self.energy_costs[0, 1, :] = self.backward_energy_cost  # 01: Backward
+        self.energy_costs[1, 0, :] = self.forward_energy_cost  # 10: Forward
+        self.energy_costs[1, 1, :] = self.base_energy_cost  # 11: Both -> cancel to base
+
+        # Drag coefficients lookup table [2, 2, n_ships]
+        # Indexed by [turning, sharp] -> drag coefficient
+        self.drag_coefficients = torch.zeros(2, 2, self.n_ships)
+        self.drag_coefficients[0, 0, :] = self.no_turn_drag  # 00: No turn, normal
+        self.drag_coefficients[0, 1, :] = (
+            self.no_turn_drag
+        )  # 01: No turn, sharp (sharp ignored)
+        self.drag_coefficients[1, 0, :] = (
+            self.normal_turn_drag_coef
+        )  # 10: Turning, normal
+        self.drag_coefficients[1, 1, :] = (
+            self.sharp_turn_drag_coef
+        )  # 11: Turning, sharp
+
+        # Lift coefficients lookup table [2, n_ships]
+        # Indexed by [sharp] -> lift coefficient
+        self.lift_coefficients = torch.zeros(2, self.n_ships)
+        self.lift_coefficients[0, :] = self.normal_turn_lift_coef  # 0: Normal turn
+        self.lift_coefficients[1, :] = self.sharp_turn_lift_coef  # 1: Sharp turn
+
+    def get_turn_angle(
+        self, left: torch.Tensor, right: torch.Tensor, sharp: torch.Tensor
+    ) -> torch.Tensor:
+        return self.turn_angles[left.long(), right.long(), sharp.long(), :]
+
+    def get_thrust_multiplier(
+        self, forward: torch.Tensor, backward: torch.Tensor
+    ) -> torch.Tensor:
+        return self.thrust_multipliers[forward.long(), backward.long(), :]
+
+    def get_energy_cost(
+        self, forward: torch.Tensor, backward: torch.Tensor
+    ) -> torch.Tensor:
+        return self.energy_costs[forward.long(), backward.long(), :]
+
+    def get_drag_coefficient(
+        self, turning: torch.Tensor, sharp: torch.Tensor
+    ) -> torch.Tensor:
+        return self.drag_coefficients[turning.long(), sharp.long(), :]
+
+    def get_lift_coefficient(self, sharp: torch.Tensor) -> torch.Tensor:
+        return self.lift_coefficients[sharp.long(), :]
 
     @classmethod
     def from_scalars(
@@ -167,4 +263,10 @@ class Ships:
             collision_radius=make_tensor(collision_radius),
             max_boost=make_tensor(max_boost),
             max_health=make_tensor(max_health),
+            # Lookup tables (will be computed in __post_init__)
+            turn_angles=torch.zeros(1),  # Placeholder, will be overwritten
+            thrust_multipliers=torch.zeros(1),
+            energy_costs=torch.zeros(1),
+            drag_coefficients=torch.zeros(1),
+            lift_coefficients=torch.zeros(1),
         )
