@@ -5,7 +5,7 @@ from core.ship_physics import ShipPhysics
 
 
 class Environment:
-    def __init__(self, world_size=(800, 600), n_ships=2, n_obstacles=5):
+    def __init__(self, world_size=(1200, 800), n_ships=2, n_obstacles=5):
         self.world_size = torch.tensor(world_size)
         self.n_ships = n_ships
         self.n_obstacles = n_obstacles
@@ -32,6 +32,25 @@ class Environment:
     def step(self, actions):
         # Update ships
         self.physics_engine(self.ships, actions)
+
+        # Apply wrap-around for ship positions
+        self.ships.position.real = torch.fmod(
+            self.ships.position.real, self.world_size[0]
+        )
+        self.ships.position.imag = torch.fmod(
+            self.ships.position.imag, self.world_size[1]
+        )
+        # Handle negative positions (fmod can return negative values)
+        self.ships.position.real = torch.where(
+            self.ships.position.real < 0,
+            self.ships.position.real + self.world_size[0],
+            self.ships.position.real,
+        )
+        self.ships.position.imag = torch.where(
+            self.ships.position.imag < 0,
+            self.ships.position.imag + self.world_size[1],
+            self.ships.position.imag,
+        )
 
         # Update existing projectiles
         # self.projectiles = self.physics_engine.update_projectiles(self.projectiles)

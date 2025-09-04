@@ -4,6 +4,7 @@ import torch.nn as nn
 from torchdiffeq import odeint
 
 from core.ship import Ships
+from utils.config import Actions
 
 
 @dataclass
@@ -67,21 +68,12 @@ class ShipPhysics(nn.Module):
         self.min_velocity_threshold = min_velocity_threshold
 
     def extract_action_states(self, actions: torch.Tensor) -> ActionStates:
-        """Extract boolean action states from MultiBinary(5) action tensor.
-
-        Action indices:
-        0 - Left (L)
-        1 - Right (R)
-        2 - Forward (F)
-        3 - Backward (B)
-        4 - Sharp Turn (S)
-        """
         return ActionStates(
-            left=actions[:, 0].bool(),
-            right=actions[:, 1].bool(),
-            forward=actions[:, 2].bool(),
-            backward=actions[:, 3].bool(),
-            sharp_turn=actions[:, 4].bool(),
+            left=actions[:, Actions.left].bool(),
+            right=actions[:, Actions.right].bool(),
+            forward=actions[:, Actions.forward].bool(),
+            backward=actions[:, Actions.backward].bool(),
+            sharp_turn=actions[:, Actions.sharp_turn].bool(),
         )
 
     def update_turn_offset(self, ships: Ships, action_states: ActionStates) -> None:
@@ -129,37 +121,26 @@ class ShipPhysics(nn.Module):
         # Clamp energy between 0 and max capacity
         ships.boost = torch.clamp(ships.boost, torch.tensor(0.0), ships.max_boost)
 
-    def calculate_thrust_multiplier(
-        self, ships: Ships, action_states: ActionStates
-    ) -> torch.Tensor:
-        """Calculate thrust multiplier based on forward/backward actions."""
-        # Get thrust multiplier from ships' lookup table
-        multiplier = ships.get_thrust_multiplier(
-            action_states.forward, action_states.backward
-        )
-
-        return multiplier
-
     def calculate_aerodynamic_coefficients(
         self, ships: Ships, action_states: ActionStates
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Calculate drag and lift coefficients based on turning state."""
-        # Determine if turning (L XOR R, not both)
-        is_turning = action_states.left ^ action_states.right
 
         # Get drag coefficient from ships' lookup table
-        drag_coef = ships.get_drag_coefficient(is_turning, action_states.sharp_turn)
+        drag_coef = ships.get_drag_coefficient(
+            action_states.left | action_states.right, action_states.sharp_turn
+        )
 
         # Get lift coefficient from ships' lookup table
         base_lift_coef = ships.get_lift_coefficient(action_states.sharp_turn)
 
-        # Apply turn direction to lift coefficient (left = +1, right = -1)
-        turn_direction = action_states.left.float() - action_states.right.float()
+        # Apply turn direction to lift coefficient (right = +1, left = -1)
+        turn_direction = action_states.right.float() - action_states.left.float()
 
         lift_coef = torch.where(
-            is_turning,
+            action_states.left ^ action_states.right,
             turn_direction * base_lift_coef,
-            torch.zeros_like(base_lift_coef),
+            0.0,
         )
 
         return drag_coef, lift_coef
@@ -169,7 +150,9 @@ class ShipPhysics(nn.Module):
     ) -> ForceComponents:
         """Calculate all force components."""
         # Thrust forces
-        thrust_multiplier = self.calculate_thrust_multiplier(ships, action_states)
+        thrust_multiplier = ships.get_thrust_multiplier(
+            action_states.forward, action_states.backward
+        )
         thrust_force = ships.thrust * thrust_multiplier * ships.attitude
 
         # Aerodynamic forces

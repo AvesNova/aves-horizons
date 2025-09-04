@@ -107,14 +107,14 @@ class Ships:
         # Based on the control system lookup table from requirements:
         # Pattern (L, R, S) -> Turn Offset
         self.turn_angles[0, 0, 0, :] = 0  # 000: None -> 0°
-        self.turn_angles[0, 1, 0, :] = (
+        self.turn_angles[0, 1, 0, :] = self.normal_turn_angle  # 001: R -> +normal_angle
+        self.turn_angles[1, 0, 0, :] = (
             -self.normal_turn_angle
-        )  # 001: R -> -normal_angle
-        self.turn_angles[1, 0, 0, :] = self.normal_turn_angle  # 010: L -> +normal_angle
+        )  # 010: L -> -normal_angle
         self.turn_angles[1, 1, 0, :] = 0  # 011: LR -> maintain (use 0° for lookup)
         self.turn_angles[0, 0, 1, :] = 0  # 100: S -> 0°
-        self.turn_angles[0, 1, 1, :] = -self.sharp_turn_angle  # 101: SR -> -sharp_angle
-        self.turn_angles[1, 0, 1, :] = self.sharp_turn_angle  # 110: SL -> +sharp_angle
+        self.turn_angles[0, 1, 1, :] = self.sharp_turn_angle  # 101: SR -> +sharp_angle
+        self.turn_angles[1, 0, 1, :] = -self.sharp_turn_angle  # 110: SL -> -sharp_angle
         self.turn_angles[1, 1, 1, :] = 0  # 111: SLR -> maintain (use 0° for lookup)
 
         # Thrust multipliers lookup table [2, 2, n_ships]
@@ -184,26 +184,26 @@ class Ships:
     def from_scalars(
         cls,
         n_ships: int,
-        world_size: tuple = (800, 600),
+        world_size: tuple = (1200, 800),
         random_positions: bool = True,
         initial_position: complex = 0 + 0j,
-        initial_velocity: complex = 1 + 0j,  # Moving right
+        initial_velocity: complex = 100 + 0j,  # Moving right
         initial_attitude: complex = 1 + 0j,  # Facing right
         # Thrust system defaults
-        thrust: float = 300.0,
+        thrust: float = 100.0,
         forward_boost: float = 3.0,
-        backward_boost: float = 2.0,
+        backward_boost: float = 0.0,
         base_energy_cost: float = 0.0,
         forward_energy_cost: float = 5.0,
         backward_energy_cost: float = -1.0,
         # Aerodynamic defaults
-        no_turn_drag: float = 0.008,
+        no_turn_drag: float = 8e-3,
         normal_turn_angle: float = np.deg2rad(5.0),
-        normal_turn_lift_coef: float = 1.0,
-        normal_turn_drag_coef: float = 0.01,
+        normal_turn_lift_coef: float = 4e-2,
+        normal_turn_drag_coef: float = 1e-2,
         sharp_turn_angle: float = np.deg2rad(15.0),
-        sharp_turn_lift_coef: float = 1.5,
-        sharp_turn_drag_coef: float = 0.03,
+        sharp_turn_lift_coef: float = 6e-2,
+        sharp_turn_drag_coef: float = 2e-2,
         # Physical property defaults
         collision_radius: float = 10.0,
         max_boost: float = 100.0,

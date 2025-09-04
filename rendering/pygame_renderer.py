@@ -4,7 +4,7 @@ import math
 
 
 class PygameRenderer:
-    def __init__(self, world_size=(800, 600)):
+    def __init__(self, world_size=(1200, 800)):
         pygame.init()
         self.screen = pygame.display.set_mode(world_size)
         pygame.display.set_caption("Ship Simulation")

@@ -7,8 +7,8 @@ from utils.config import Actions
 
 def main():
     # Initialize environment and renderer
-    env = Environment(n_ships=3, n_obstacles=5)
-    renderer = PygameRenderer()
+    env = Environment(n_ships=1, n_obstacles=0)
+    renderer = PygameRenderer(world_size=env.world_size.tolist())
 
     # Reset environment
     env.reset()
