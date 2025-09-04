@@ -20,9 +20,7 @@ class PygameRenderer:
             .detach()
             .cpu()
             .tolist(),
-            "orientation": torch.stack(
-                [ships.orientation.real, ships.orientation.imag], dim=-1
-            )
+            "attitude": torch.stack([ships.attitude.real, ships.attitude.imag], dim=-1)
             .detach()
             .cpu()
             .tolist(),
@@ -76,12 +74,12 @@ class PygameRenderer:
         # Draw ships
         for i, ship_id in enumerate(ships["id"]):
             pos = ships["position"][i]  # [x, y] from complex conversion
-            orientation = ships["orientation"][i]  # [cos, sin] from complex conversion
+            attitude = ships["attitude"][i]  # [cos, sin] from complex conversion
             radius = ships["collision_radius"][i]
             health = ships["health"][i]
 
             # Get rotation angle from complex unit vector
-            angle = math.atan2(orientation[1], orientation[0])  # atan2(sin, cos)
+            angle = math.atan2(attitude[1], attitude[0])  # atan2(sin, cos)
 
             # Draw ship as a triangle
             points = []

@@ -1,6 +1,7 @@
 import torch
 
-from core.ship import Ships, ShipPhysics
+from core.ship import Ships
+from core.ship_physics import ShipPhysics
 
 
 class Environment:
@@ -22,7 +23,9 @@ class Environment:
         return obstacles
 
     def reset(self):
-        self.ships = Ships(self.n_ships, self.world_size)
+        self.ships = Ships.from_scalars(
+            n_ships=self.n_ships, world_size=self.world_size
+        )
         self.projectiles = {}
         return self.get_observation()
 

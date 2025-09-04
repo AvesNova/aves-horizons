@@ -93,6 +93,9 @@ class Ships:
 
         # Build lookup tables from individual parameters
         self._build_lookup_tables()
+        self.ship_arange = torch.arange(self.n_ships)
+        self.min_velocity_threshold = 1e-3  # Minimum speed to consider for physics
+        self.id = torch.arange(self.n_ships)  # Unique ID for each ship
 
     def _build_lookup_tables(self):
         """Build efficient lookup tables for physics parameters."""
@@ -153,25 +156,29 @@ class Ships:
     def get_turn_angle(
         self, left: torch.Tensor, right: torch.Tensor, sharp: torch.Tensor
     ) -> torch.Tensor:
-        return self.turn_angles[left.long(), right.long(), sharp.long(), :]
+        return self.turn_angles[
+            left.long(), right.long(), sharp.long(), self.ship_arange
+        ]
 
     def get_thrust_multiplier(
         self, forward: torch.Tensor, backward: torch.Tensor
     ) -> torch.Tensor:
-        return self.thrust_multipliers[forward.long(), backward.long(), :]
+        return self.thrust_multipliers[
+            forward.long(), backward.long(), self.ship_arange
+        ]
 
     def get_energy_cost(
         self, forward: torch.Tensor, backward: torch.Tensor
     ) -> torch.Tensor:
-        return self.energy_costs[forward.long(), backward.long(), :]
+        return self.energy_costs[forward.long(), backward.long(), self.ship_arange]
 
     def get_drag_coefficient(
         self, turning: torch.Tensor, sharp: torch.Tensor
     ) -> torch.Tensor:
-        return self.drag_coefficients[turning.long(), sharp.long(), :]
+        return self.drag_coefficients[turning.long(), sharp.long(), self.ship_arange]
 
     def get_lift_coefficient(self, sharp: torch.Tensor) -> torch.Tensor:
-        return self.lift_coefficients[sharp.long(), :]
+        return self.lift_coefficients[sharp.long(), self.ship_arange]
 
     @classmethod
     def from_scalars(
@@ -180,7 +187,7 @@ class Ships:
         world_size: tuple = (800, 600),
         random_positions: bool = True,
         initial_position: complex = 0 + 0j,
-        initial_velocity: complex = 0 + 0j,
+        initial_velocity: complex = 1 + 0j,  # Moving right
         initial_attitude: complex = 1 + 0j,  # Facing right
         # Thrust system defaults
         thrust: float = 300.0,

@@ -92,9 +92,6 @@ class ShipPhysics(nn.Module):
             action_states.left, action_states.right, action_states.sharp_turn
         )
 
-        # Extract the angles for each ship (result is [n_ships])
-        turn_angles = torch.diagonal(turn_angles)
-
         # Handle special cases where both L and R are pressed (maintain current offset)
         both_lr_pressed = action_states.left & action_states.right
 
@@ -112,22 +109,12 @@ class ShipPhysics(nn.Module):
         Only update if velocity is above minimum threshold.
         """
         speed = torch.abs(ships.velocity)
-        above_threshold = speed > self.min_velocity_threshold
 
         # Calculate velocity direction (normalized velocity)
-        velocity_direction = torch.where(
-            above_threshold.unsqueeze(-1),
-            ships.velocity / speed.unsqueeze(-1),
-            ships.attitude,  # Keep current attitude if too slow
-        )
+        velocity_direction = ships.velocity / speed
 
         # Apply turn offset to velocity direction
-        new_attitude = velocity_direction * torch.exp(1j * ships.turn_offset)
-
-        # Only update attitude if above speed threshold
-        ships.attitude = torch.where(
-            above_threshold.unsqueeze(-1), new_attitude, ships.attitude
-        )
+        ships.attitude = velocity_direction * torch.exp(1j * ships.turn_offset)
 
     def update_energy(self, ships: Ships, action_states: ActionStates) -> None:
         """Update boost energy based on action states and energy costs."""
@@ -136,14 +123,11 @@ class ShipPhysics(nn.Module):
             action_states.forward, action_states.backward
         )
 
-        # Extract the costs for each ship (result is [n_ships])
-        energy_cost = torch.diagonal(energy_cost)
-
         # Update boost energy (subtract cost, negative cost = regeneration)
         ships.boost = ships.boost - energy_cost * self.target_timestep
 
         # Clamp energy between 0 and max capacity
-        ships.boost = torch.clamp(ships.boost, 0.0, ships.max_boost)
+        ships.boost = torch.clamp(ships.boost, torch.tensor(0.0), ships.max_boost)
 
     def calculate_thrust_multiplier(
         self, ships: Ships, action_states: ActionStates
@@ -154,8 +138,7 @@ class ShipPhysics(nn.Module):
             action_states.forward, action_states.backward
         )
 
-        # Extract the multipliers for each ship (result is [n_ships])
-        return torch.diagonal(multiplier)
+        return multiplier
 
     def calculate_aerodynamic_coefficients(
         self, ships: Ships, action_states: ActionStates
@@ -166,13 +149,9 @@ class ShipPhysics(nn.Module):
 
         # Get drag coefficient from ships' lookup table
         drag_coef = ships.get_drag_coefficient(is_turning, action_states.sharp_turn)
-        # Extract the coefficients for each ship (result is [n_ships])
-        drag_coef = torch.diagonal(drag_coef)
 
         # Get lift coefficient from ships' lookup table
         base_lift_coef = ships.get_lift_coefficient(action_states.sharp_turn)
-        # Extract the coefficients for each ship (result is [n_ships])
-        base_lift_coef = torch.diagonal(base_lift_coef)
 
         # Apply turn direction to lift coefficient (left = +1, right = -1)
         turn_direction = action_states.left.float() - action_states.right.float()
@@ -191,7 +170,7 @@ class ShipPhysics(nn.Module):
         """Calculate all force components."""
         # Thrust forces
         thrust_multiplier = self.calculate_thrust_multiplier(ships, action_states)
-        thrust_force = ships.thrust * thrust_multiplier.unsqueeze(-1) * ships.attitude
+        thrust_force = ships.thrust * thrust_multiplier * ships.attitude
 
         # Aerodynamic forces
         drag_coef, lift_coef = self.calculate_aerodynamic_coefficients(
@@ -200,9 +179,10 @@ class ShipPhysics(nn.Module):
         speed = torch.abs(ships.velocity)
 
         # Drag opposes velocity, lift is perpendicular (90° rotation = multiply by i)
-        aero_force = -drag_coef.unsqueeze(-1) * ships.velocity * speed.unsqueeze(
-            -1
-        ) + 1j * lift_coef.unsqueeze(-1) * ships.velocity * speed.unsqueeze(-1)
+        aero_force = (
+            -drag_coef * ships.velocity * speed
+            + 1j * lift_coef * ships.velocity * speed
+        )
 
         # Total acceleration (assuming unit mass)
         total_acceleration = thrust_force + aero_force
@@ -219,8 +199,6 @@ class ShipPhysics(nn.Module):
         State vector: [position_real, position_imag, velocity_real, velocity_imag]
         Returns: [velocity_real, velocity_imag, acceleration_real, acceleration_imag]
         """
-        n_ships = state.shape[0] // 4
-
         # Extract state components
         pos_real, pos_imag, vel_real, vel_imag = state.chunk(4, dim=0)
 
@@ -277,7 +255,6 @@ class ShipPhysics(nn.Module):
 
         # Extract final state
         final_state = solution[-1]  # Last time step
-        n_ships = final_state.shape[0] // 4
 
         pos_real, pos_imag, vel_real, vel_imag = final_state.chunk(4, dim=0)
 
