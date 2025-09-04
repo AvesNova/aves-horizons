@@ -66,21 +66,6 @@ class ShipPhysics(nn.Module):
         self.max_steps = max_steps
         self.min_velocity_threshold = min_velocity_threshold
 
-        # Turn offset lookup table based on bit patterns (SLR)
-        # Bit pattern: [Sharp, Left, Right] -> turn offset multiplier
-        self.turn_lookup = torch.tensor(
-            [
-                0.0,  # 000: None -> 0°
-                -1.0,  # 001: R -> -normal_angle
-                1.0,  # 010: L -> +normal_angle
-                0.0,  # 011: LR -> Previous (no change, handled separately)
-                0.0,  # 100: S -> 0°
-                -1.0,  # 101: SR -> -sharp_angle
-                1.0,  # 110: SL -> +sharp_angle
-                0.0,  # 111: SLR -> Previous (no change, handled separately)
-            ]
-        )
-
     def extract_action_states(self, actions: torch.Tensor) -> ActionStates:
         """Extract boolean action states from MultiBinary(5) action tensor.
 
@@ -101,32 +86,23 @@ class ShipPhysics(nn.Module):
 
     def update_turn_offset(self, ships: Ships, action_states: ActionStates) -> None:
         """Update turn offset using lookup table based on button combinations."""
-        # Create bit pattern: [Sharp, Left, Right]
-        bit_pattern = (
-            action_states.sharp_turn.int() * 4
-            + action_states.left.int() * 2
-            + action_states.right.int()
+        # Get turn angle from ships' lookup table
+        # This handles all bit patterns including maintain-current cases
+        turn_angles = ships.get_turn_angle(
+            action_states.left, action_states.right, action_states.sharp_turn
         )
 
-        # Get turn multipliers from lookup table
-        turn_multipliers = self.turn_lookup[bit_pattern]
+        # Extract the angles for each ship (result is [n_ships])
+        turn_angles = torch.diagonal(turn_angles)
 
         # Handle special cases where both L and R are pressed (maintain current offset)
         both_lr_pressed = action_states.left & action_states.right
 
-        # Select appropriate turn angle based on sharp turn modifier
-        base_angle = torch.where(
-            action_states.sharp_turn, ships.sharp_turn_angle, ships.normal_turn_angle
-        )
-
-        # Calculate new turn offset
-        new_turn_offset = turn_multipliers * base_angle
-
-        # Maintain current offset when both L and R are pressed
+        # Update turn offset, maintaining current when both L and R are pressed
         ships.turn_offset = torch.where(
             both_lr_pressed,
             ships.turn_offset,  # Keep current
-            new_turn_offset,  # Update to new
+            turn_angles,  # Update to new angle from lookup
         )
 
     def update_attitude(self, ships: Ships) -> None:
@@ -155,23 +131,13 @@ class ShipPhysics(nn.Module):
 
     def update_energy(self, ships: Ships, action_states: ActionStates) -> None:
         """Update boost energy based on action states and energy costs."""
-        # Determine energy cost based on actions
-        # If both forward and backward pressed, treat as neither
-        both_fb_pressed = action_states.forward & action_states.backward
-
-        energy_cost = torch.where(
-            both_fb_pressed,
-            ships.base_energy_cost,  # Both pressed = neutral
-            torch.where(
-                action_states.forward,
-                ships.forward_energy_cost,  # Forward cost
-                torch.where(
-                    action_states.backward,
-                    ships.backward_energy_cost,  # Backward cost (can be negative for regen)
-                    ships.base_energy_cost,  # Neither pressed = base cost
-                ),
-            ),
+        # Get energy cost from ships' lookup table
+        energy_cost = ships.get_energy_cost(
+            action_states.forward, action_states.backward
         )
+
+        # Extract the costs for each ship (result is [n_ships])
+        energy_cost = torch.diagonal(energy_cost)
 
         # Update boost energy (subtract cost, negative cost = regeneration)
         ships.boost = ships.boost - energy_cost * self.target_timestep
@@ -183,24 +149,13 @@ class ShipPhysics(nn.Module):
         self, ships: Ships, action_states: ActionStates
     ) -> torch.Tensor:
         """Calculate thrust multiplier based on forward/backward actions."""
-        # If both forward and backward pressed, treat as neither (multiplier = 1.0)
-        both_fb_pressed = action_states.forward & action_states.backward
-
-        multiplier = torch.where(
-            both_fb_pressed,
-            torch.ones_like(ships.forward_boost),  # Both = no boost
-            torch.where(
-                action_states.forward,
-                ships.forward_boost,  # Forward boost
-                torch.where(
-                    action_states.backward,
-                    ships.backward_boost,  # Backward boost
-                    torch.ones_like(ships.forward_boost),  # Neither = no boost
-                ),
-            ),
+        # Get thrust multiplier from ships' lookup table
+        multiplier = ships.get_thrust_multiplier(
+            action_states.forward, action_states.backward
         )
 
-        return multiplier
+        # Extract the multipliers for each ship (result is [n_ships])
+        return torch.diagonal(multiplier)
 
     def calculate_aerodynamic_coefficients(
         self, ships: Ships, action_states: ActionStates
@@ -209,20 +164,18 @@ class ShipPhysics(nn.Module):
         # Determine if turning (L XOR R, not both)
         is_turning = action_states.left ^ action_states.right
 
-        # Select coefficients based on sharp turn and turning state
-        drag_coef = torch.where(
-            is_turning & action_states.sharp_turn,
-            ships.sharp_turn_drag_coef,
-            torch.where(is_turning, ships.normal_turn_drag_coef, ships.no_turn_drag),
-        )
+        # Get drag coefficient from ships' lookup table
+        drag_coef = ships.get_drag_coefficient(is_turning, action_states.sharp_turn)
+        # Extract the coefficients for each ship (result is [n_ships])
+        drag_coef = torch.diagonal(drag_coef)
 
-        # Lift coefficient (with direction: left = +1, right = -1)
+        # Get lift coefficient from ships' lookup table
+        base_lift_coef = ships.get_lift_coefficient(action_states.sharp_turn)
+        # Extract the coefficients for each ship (result is [n_ships])
+        base_lift_coef = torch.diagonal(base_lift_coef)
+
+        # Apply turn direction to lift coefficient (left = +1, right = -1)
         turn_direction = action_states.left.float() - action_states.right.float()
-        base_lift_coef = torch.where(
-            action_states.sharp_turn,
-            ships.sharp_turn_lift_coef,
-            ships.normal_turn_lift_coef,
-        )
 
         lift_coef = torch.where(
             is_turning,
