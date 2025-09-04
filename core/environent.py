@@ -160,7 +160,9 @@ class Environment:
                 ):
 
                     # Apply damage
-                    self.ships.health[ship_idx] -= 10
+                    self.ships.health[ship_idx] -= self.ships.projectile_damage[
+                        owner_ship_idx
+                    ]
 
                     # Deactivate projectile
                     self.ships.projectiles_active[owner_ship_idx, original_proj_idx] = (
