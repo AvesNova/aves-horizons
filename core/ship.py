@@ -89,6 +89,7 @@ class Ships:
     max_ammo: torch.Tensor  # Maximum ammo capacity
     ammo_count: torch.Tensor  # Current ammo count (can be fractional)
     ammo_regen_rate: torch.Tensor  # Ammo regeneration per second
+    projectile_spread: torch.Tensor  # Random angle spread when firing (in radians)
 
     # Aerodynamic Parameters
     no_turn_drag: torch.Tensor
@@ -229,7 +230,8 @@ class Ships:
         projectile_lifetime: float = 1.0,
         firing_cooldown: float = 0.04,
         max_ammo: float = 32.0,
-        ammo_regen_rate: float = 4.0,  # Regenerate 0.5 ammo per second
+        ammo_regen_rate: float = 4.0,
+        projectile_spread: float = np.deg2rad(3.0),
         # Aerodynamic defaults
         no_turn_drag: float = 8e-4,
         normal_turn_angle: float = np.deg2rad(5.0),
@@ -307,6 +309,7 @@ class Ships:
             max_ammo=make_tensor(max_ammo),
             ammo_count=make_tensor(max_ammo),  # Start with full ammo
             ammo_regen_rate=make_tensor(ammo_regen_rate),
+            projectile_spread=make_tensor(projectile_spread),
             # Thrust system parameters
             thrust=make_tensor(thrust),
             forward_boost=make_tensor(forward_boost),

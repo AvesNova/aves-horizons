@@ -49,10 +49,14 @@ def fire_projectile(ships, ship_idx: int) -> bool:
     ships.projectiles_lifetime[ship_idx, idx] = ships.projectile_lifetime[ship_idx]
     ships.projectiles_position[ship_idx, idx] = ships.position[ship_idx]
 
-    # Set velocity as ship velocity plus bullet speed in ship's attitude direction
+    # Calculate random spread angle
+    spread = (torch.rand(1) * 2 - 1) * ships.projectile_spread[ship_idx]
+    spread_direction = torch.exp(1j * spread)
+
+    # Set velocity as ship velocity plus bullet speed in ship's attitude direction with spread
     ships.projectiles_velocity[ship_idx, idx] = (
         ships.velocity[ship_idx]
-        + ships.projectile_speed[ship_idx] * ships.attitude[ship_idx]
+        + ships.projectile_speed[ship_idx] * ships.attitude[ship_idx] * spread_direction
     )
 
     # Update firing index, cooldown, and ammo count
