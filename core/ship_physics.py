@@ -153,6 +153,7 @@ class ShipPhysics(nn.Module):
         thrust_multiplier = ships.get_thrust_multiplier(
             action_states.forward, action_states.backward
         )
+        thrust_multiplier = torch.where(ships.boost > 0, thrust_multiplier, 1.0)
         thrust_force = ships.thrust * thrust_multiplier * ships.attitude
 
         # Aerodynamic forces
