@@ -112,10 +112,28 @@ class PygameRenderer:
                 ),
             )
 
-        # # Draw projectiles
-        # for proj in projectiles:
-        #     pos = proj['position']  # [x, y] from complex conversion
-        #     pygame.draw.circle(self.screen, (255, 255, 0), (int(pos[0]), int(pos[1])), 3)
+        # Draw projectiles
+        projectiles_pos = (
+            torch.stack(
+                [
+                    ships_object.projectiles_position.real,
+                    ships_object.projectiles_position.imag,
+                ],
+                dim=-1,
+            )
+            .detach()
+            .cpu()
+        )
+        projectiles_active = ships_object.projectiles_active.detach().cpu()
+
+        # Iterate through all ships and their projectiles
+        for ship_idx in range(ships_object.n_ships):
+            for proj_idx in range(ships_object.max_projectiles):
+                if projectiles_active[ship_idx, proj_idx]:
+                    pos = projectiles_pos[ship_idx, proj_idx]
+                    pygame.draw.circle(
+                        self.screen, (255, 255, 0), (int(pos[0]), int(pos[1])), 3
+                    )
 
         # Draw debug info for ship 0
         if len(ships["id"]) > 0:
@@ -126,6 +144,7 @@ class PygameRenderer:
             boost = ships_object.boost[0].detach().cpu().item()
             health = ships["health"][0]
             speed = ships_object.velocity[0].abs().detach().cpu().item()
+            projectile_index = ships_object.projectile_index[0].detach().cpu().item()
 
             debug_info = [
                 f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}",
@@ -136,6 +155,7 @@ class PygameRenderer:
                 f"Boost: {boost:.1f}",
                 f"Health: {health}",
                 f"Speed: {speed:.1f}",
+                f"Pojectile Index: {projectile_index}",
             ]
 
             for i, text in enumerate(debug_info):

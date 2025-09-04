@@ -1,11 +1,51 @@
 import torch
+from typing import Tuple
 
-def create_projectiles(n_ships, max_projectiles_per_ship):
-    projectiles = {
-        'fire_index': torch.arange(0, n_ships * max_projectiles_per_ship, max_projectiles_per_ship),
-        'active': torch.zeros(n_ships * max_projectiles_per_ship, dtype=torch.bool),
-        'lifetime': torch.zeros(n_ships * max_projectiles_per_ship),
-        'position': torch.zeros(n_ships * max_projectiles_per_ship, 2),
-        'velocity': torch.zeros(n_ships * max_projectiles_per_ship, 2),
-    }
-    return projectiles
+
+def update_projectiles(ships, dt: float) -> None:
+    """Update projectile positions and lifetimes.
+
+    Args:
+        ships: Ships dataclass containing projectile state
+        dt: Time step for integration
+    """
+    # Update positions using current velocities
+    ships.projectiles_position += ships.projectiles_velocity * dt
+
+    # Update lifetimes and deactivate expired projectiles
+    ships.projectiles_lifetime -= dt
+    ships.projectiles_active &= ships.projectiles_lifetime > 0
+
+
+def fire_projectile(ships, ship_idx: int) -> bool:
+    """Attempt to fire a projectile from the specified ship.
+
+    Args:
+        ships: Ships dataclass containing ship and projectile state
+        ship_idx: Index of the ship firing
+
+    Returns:
+        bool: True if projectile was fired, False if on cooldown
+    """
+    if ships.projectile_cooldown[ship_idx] > 0:
+        return False
+
+    # Get next projectile index for this ship
+    idx = ships.projectile_index[ship_idx]
+
+    # Reset projectile state
+    ships.projectiles_active[ship_idx, idx] = True
+    ships.projectiles_lifetime[ship_idx, idx] = ships.projectile_lifetime[ship_idx]
+    ships.projectiles_position[ship_idx, idx] = ships.position[ship_idx]
+
+    # Set velocity as ship velocity plus bullet speed in ship's attitude direction
+    ships.projectiles_velocity[ship_idx, idx] = (
+        ships.velocity[ship_idx]
+        + ships.projectile_speed[ship_idx] * ships.attitude[ship_idx]
+    )
+
+    # Update firing index and cooldown
+    ships.projectile_index[ship_idx] = (idx + 1) % ships.max_projectiles
+    ships.projectile_cooldown[ship_idx] = ships.firing_cooldown[ship_idx]
+
+    return True

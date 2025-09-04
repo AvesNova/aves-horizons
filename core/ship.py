@@ -56,6 +56,14 @@ class Ships:
     boost: torch.Tensor  # Current boost energy
     health: torch.Tensor  # Current health points
 
+    # Projectile System State
+    projectile_index: torch.Tensor  # Current projectile firing index per ship
+    projectile_cooldown: torch.Tensor  # Current firing cooldown timer per ship
+    projectiles_position: torch.Tensor  # Complex tensor [n_ships, max_projectiles]
+    projectiles_velocity: torch.Tensor  # Complex tensor [n_ships, max_projectiles]
+    projectiles_active: torch.Tensor  # Boolean tensor [n_ships, max_projectiles]
+    projectiles_lifetime: torch.Tensor  # Remaining lifetime [n_ships, max_projectiles]
+
     # Thrust System Parameters
     thrust: torch.Tensor  # Base thrust force
     forward_boost: torch.Tensor  # Forward thrust multiplier
@@ -63,6 +71,13 @@ class Ships:
     base_energy_cost: torch.Tensor  # Neutral energy consumption
     forward_energy_cost: torch.Tensor  # Forward movement energy cost
     backward_energy_cost: torch.Tensor  # Backward movement energy cost
+
+    # Projectile System Parameters
+    max_projectiles: int  # Maximum number of projectiles per ship
+    projectile_speed: torch.Tensor  # Base speed of fired projectiles
+    projectile_damage: torch.Tensor  # Damage dealt by projectiles
+    projectile_lifetime: torch.Tensor  # Maximum lifetime of projectiles
+    firing_cooldown: torch.Tensor  # Minimum time between shots
 
     # Aerodynamic Parameters
     no_turn_drag: torch.Tensor
@@ -196,6 +211,12 @@ class Ships:
         base_energy_cost: float = -10.0,
         forward_energy_cost: float = 50.0,
         backward_energy_cost: float = -10.0,
+        # Projectile system defaults
+        max_projectiles: int = 16,
+        projectile_speed: float = 500.0,
+        projectile_damage: float = 10.0,
+        projectile_lifetime: float = 1.0,
+        firing_cooldown: float = 0.05,
         # Aerodynamic defaults
         no_turn_drag: float = 8e-4,
         normal_turn_angle: float = np.deg2rad(5.0),
@@ -251,6 +272,25 @@ class Ships:
             turn_offset=torch.zeros(n_ships),
             boost=torch.zeros(n_ships),
             health=torch.zeros(n_ships),
+            # Projectile System State
+            projectile_index=torch.zeros(n_ships, dtype=torch.long),
+            projectile_cooldown=torch.zeros(n_ships),
+            projectiles_position=torch.zeros(
+                (n_ships, max_projectiles), dtype=torch.complex64
+            ),
+            projectiles_velocity=torch.zeros(
+                (n_ships, max_projectiles), dtype=torch.complex64
+            ),
+            projectiles_active=torch.zeros(
+                (n_ships, max_projectiles), dtype=torch.bool
+            ),
+            projectiles_lifetime=torch.zeros((n_ships, max_projectiles)),
+            # Projectile System Parameters
+            max_projectiles=max_projectiles,
+            projectile_speed=make_tensor(projectile_speed),
+            projectile_damage=make_tensor(projectile_damage),
+            projectile_lifetime=make_tensor(projectile_lifetime),
+            firing_cooldown=make_tensor(firing_cooldown),
             # Thrust system parameters
             thrust=make_tensor(thrust),
             forward_boost=make_tensor(forward_boost),

@@ -2,6 +2,8 @@ import torch
 
 from core.ship import Ships
 from core.ship_physics import ShipPhysics
+from core.projectile import update_projectiles, fire_projectile
+from utils.config import Actions
 
 
 class Environment:
@@ -13,6 +15,9 @@ class Environment:
         self.projectiles = {}
         self.obstacles = self._generate_obstacles()
         self.physics_engine = ShipPhysics()
+        self.target_dt = (
+            self.physics_engine.target_timestep
+        )  # Use same timestep as physics engine
 
     def _generate_obstacles(self):
         obstacles = []
@@ -33,6 +38,17 @@ class Environment:
         # Update ships
         self.physics_engine(self.ships, actions)
 
+        # Handle ship firing
+        for i in range(self.n_ships):
+            if actions[i, Actions.shoot] and self.ships.projectile_cooldown[i] <= 0:
+                fire_projectile(self.ships, i)
+            self.ships.projectile_cooldown[i] = max(
+                0, self.ships.projectile_cooldown[i] - self.target_dt
+            )
+
+        # Update projectiles
+        update_projectiles(self.ships, self.target_dt)
+
         # Apply wrap-around for ship positions
         self.ships.position.real = torch.fmod(
             self.ships.position.real, self.world_size[0]
@@ -52,8 +68,23 @@ class Environment:
             self.ships.position.imag,
         )
 
-        # Update existing projectiles
-        # self.projectiles = self.physics_engine.update_projectiles(self.projectiles)
+        # Apply wrap-around for projectile positions
+        self.ships.projectiles_position.real = torch.fmod(
+            self.ships.projectiles_position.real, self.world_size[0]
+        )
+        self.ships.projectiles_position.imag = torch.fmod(
+            self.ships.projectiles_position.imag, self.world_size[1]
+        )
+        self.ships.projectiles_position.real = torch.where(
+            self.ships.projectiles_position.real < 0,
+            self.ships.projectiles_position.real + self.world_size[0],
+            self.ships.projectiles_position.real,
+        )
+        self.ships.projectiles_position.imag = torch.where(
+            self.ships.projectiles_position.imag < 0,
+            self.ships.projectiles_position.imag + self.world_size[1],
+            self.ships.projectiles_position.imag,
+        )
 
         # Check collisions
         self._check_collisions()
