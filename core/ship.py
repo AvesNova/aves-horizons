@@ -190,20 +190,20 @@ class Ships:
         initial_velocity: complex = 100 + 0j,  # Moving right
         initial_attitude: complex = 1 + 0j,  # Facing right
         # Thrust system defaults
-        thrust: float = 100.0,
-        forward_boost: float = 3.0,
+        thrust: float = 10.0,
+        forward_boost: float = 5.0,
         backward_boost: float = 0.0,
         base_energy_cost: float = 0.0,
         forward_energy_cost: float = 5.0,
-        backward_energy_cost: float = -1.0,
+        backward_energy_cost: float = -2.0,
         # Aerodynamic defaults
-        no_turn_drag: float = 8e-3,
+        no_turn_drag: float = 8e-4,
         normal_turn_angle: float = np.deg2rad(5.0),
-        normal_turn_lift_coef: float = 4e-2,
-        normal_turn_drag_coef: float = 1e-2,
+        normal_turn_lift_coef: float = 15e-3,
+        normal_turn_drag_coef: float = 1e-3,
         sharp_turn_angle: float = np.deg2rad(15.0),
-        sharp_turn_lift_coef: float = 6e-2,
-        sharp_turn_drag_coef: float = 2e-2,
+        sharp_turn_lift_coef: float = 30e-3,
+        sharp_turn_drag_coef: float = 3e-3,
         # Physical property defaults
         collision_radius: float = 10.0,
         max_boost: float = 100.0,
