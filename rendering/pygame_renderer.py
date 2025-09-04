@@ -12,6 +12,43 @@ class PygameRenderer:
         self.world_size = world_size
         self.font = pygame.font.SysFont(None, 24)
 
+        # Create sprite surfaces
+        self.ship_surface = self._create_ship_surface()
+        self.projectile_surface = self._create_projectile_surface()
+
+        # Cache for debug text surfaces
+        self.debug_surfaces = {}
+
+    def _create_ship_surface(self):
+        """Create a ship sprite surface in Asteroids style"""
+        size = 32  # Size of the sprite surface
+        surface = pygame.Surface((size, size), pygame.SRCALPHA)
+
+        # Calculate points for Asteroids-style ship
+        # The ship points to the right (0 degrees) as the base orientation
+        center_x = size // 2
+        center_y = size // 2
+        ship_length = size * 0.8  # Length of the ship
+        ship_width = size * 0.5  # Width of the ship
+
+        points = [
+            (center_x + ship_length // 2, center_y),  # nose
+            (center_x - ship_length // 2, center_y - ship_width // 2),  # top back
+            (center_x - ship_length // 3, center_y),  # back indent
+            (center_x - ship_length // 2, center_y + ship_width // 2),  # bottom back
+        ]
+
+        # Draw the ship outline in white for classic Asteroids look
+        pygame.draw.polygon(surface, (255, 255, 255), points, 2)
+        return surface
+
+    def _create_projectile_surface(self):
+        """Create a projectile sprite surface"""
+        size = 6  # Size of the projectile sprite
+        surface = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.circle(surface, (255, 255, 0), (size // 2, size // 2), size // 2)
+        return surface
+
     def convert_ships_to_dict(self, ships):
         """Convert Ships object to dictionary for rendering"""
         return {
@@ -79,40 +116,44 @@ class PygameRenderer:
             health = ships["health"][i]
 
             # Get rotation angle from complex unit vector
-            angle = math.atan2(attitude[1], attitude[0])  # atan2(sin, cos)
+            # Add 90 degrees (π/2) to rotate from right-facing (0°) to up-facing (90°)
+            angle = math.atan2(attitude[1], attitude[0])
 
-            # Draw ship as a triangle
-            points = []
-            for j in range(3):
-                point_angle = angle + j * 2 * math.pi / 3
-                x = pos[0] + radius * math.cos(point_angle)
-                y = pos[1] + radius * math.sin(point_angle)
-                points.append((x, y))
+            # Draw ship sprite
+            # Create a copy of the surface for rotation and alpha
+            rotated_surface = pygame.transform.rotate(
+                self.ship_surface, -math.degrees(angle)
+            )
+            # Set alpha based on health
+            rotated_surface.set_alpha(int(255 * health / 100) if health > 0 else 100)
 
-            # Determine color based on health
-            color = (0, int(255 * health / 100), 0) if health > 0 else (100, 100, 100)
-            pygame.draw.polygon(self.screen, color, points)
+            # Get the new rect for the rotated surface
+            rect = rotated_surface.get_rect(center=(pos[0], pos[1]))
+            self.screen.blit(rotated_surface, rect)
 
             # Draw health bar
             bar_width = 30
             bar_height = 5
+            # Draw background (red)
             pygame.draw.rect(
                 self.screen,
                 (255, 0, 0),
                 (pos[0] - bar_width / 2, pos[1] - radius - 10, bar_width, bar_height),
             )
-            pygame.draw.rect(
-                self.screen,
-                (0, 255, 0),
-                (
-                    pos[0] - bar_width / 2,
-                    pos[1] - radius - 10,
-                    bar_width * health / 100,
-                    bar_height,
-                ),
-            )
+            # Draw health (green)
+            if health > 0:
+                pygame.draw.rect(
+                    self.screen,
+                    (0, 255, 0),
+                    (
+                        pos[0] - bar_width / 2,
+                        pos[1] - radius - 10,
+                        bar_width * health / 100,
+                        bar_height,
+                    ),
+                )
 
-        # Draw projectiles
+        # Draw projectiles using sprite batching
         projectiles_pos = (
             torch.stack(
                 [
@@ -126,14 +167,20 @@ class PygameRenderer:
         )
         projectiles_active = ships_object.projectiles_active.detach().cpu()
 
-        # Iterate through all ships and their projectiles
+        # Pre-calculate projectile rectangles for batch blitting
+        proj_rects = []
         for ship_idx in range(ships_object.n_ships):
             for proj_idx in range(ships_object.max_projectiles):
                 if projectiles_active[ship_idx, proj_idx]:
                     pos = projectiles_pos[ship_idx, proj_idx]
-                    pygame.draw.circle(
-                        self.screen, (255, 255, 0), (int(pos[0]), int(pos[1])), 3
+                    rect = self.projectile_surface.get_rect(
+                        center=(int(pos[0]), int(pos[1]))
                     )
+                    proj_rects.append(rect)
+
+        # Batch blit all projectiles
+        if proj_rects:
+            self.screen.blits([(self.projectile_surface, rect) for rect in proj_rects])
 
         # Draw debug info for ship 0
         if len(ships["id"]) > 0:
@@ -146,8 +193,10 @@ class PygameRenderer:
             speed = ships_object.velocity[0].abs().detach().cpu().item()
             ammo_count = ships_object.ammo_count[0].detach().cpu().item()
 
+            # Prepare debug info
+            fps = self.clock.get_fps()
             debug_info = [
-                f"Ships: {len(ships['id'])} | Projectiles: {len(projectiles)}",
+                f"Ships: {len(ships['id'])} | Projectiles: {projectiles_active[0].sum().item()}",
                 f"Position: ({pos[0]:.1f}, {pos[1]:.1f})",
                 f"Velocity: ({vel.real:.1f}, {vel.imag:.1f})",
                 f"Attitude: ({attitude[0]:.2f}, {attitude[1]:.2f})",
@@ -156,11 +205,21 @@ class PygameRenderer:
                 f"Health: {health}",
                 f"Speed: {speed:.1f}",
                 f"Ammo: {ammo_count:.1f}",
+                f"FPS: {fps:.1f}",
             ]
 
+            # Cache and render debug text
+            debug_surfaces = []
             for i, text in enumerate(debug_info):
-                text_surface = self.font.render(text, True, (255, 255, 255))
-                self.screen.blit(text_surface, (10, 10 + i * 25))
+                # Only render if text changed or not in cache
+                if text not in self.debug_surfaces:
+                    self.debug_surfaces[text] = self.font.render(
+                        text, True, (255, 255, 255)
+                    )
+                debug_surfaces.append((self.debug_surfaces[text], (10, 10 + i * 25)))
+
+            # Batch blit debug text
+            self.screen.blits(debug_surfaces)
 
         pygame.display.flip()
         self.clock.tick(60)

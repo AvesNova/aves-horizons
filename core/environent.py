@@ -197,18 +197,8 @@ class Environment:
 
                 if dist < ship_rad:
                     # Simple collision response - bounce and damage
-                    self.ships.velocity[ship_idx] *= -0.5
-                    self.ships.health[ship_idx] -= 1
-
-    def _check_bullet_collisions(self):
-        """Legacy method - kept for backward compatibility but replaced by vectorized version."""
-        # This method is now replaced by _check_bullet_ship_collisions_vectorized
-        # but kept here in case other parts of the code depend on it
-        self._check_bullet_ship_collisions_vectorized()
-
-    def _check_collisions(self):
-        """Legacy method - kept for backward compatibility but replaced by _check_all_collisions."""
-        self._check_all_collisions()
+                    # self.ships.velocity[ship_idx] *= -0.5
+                    self.ships.health[ship_idx] -= 100
 
     def get_observation(self):
         # For now, return all ship and projectile data
