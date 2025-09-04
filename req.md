@@ -1,7 +1,7 @@
 # Ship Game Requirements Document
 
 ## Overview
-A physics-based ship simulation game with OpenAI Gym compatibility for reinforcement learning. Ships are controlled through thrust and turning actions with realistic physics including aerodynamic forces. The simulation uses adaptive ODE integration via torchdiffeq for accurate physics modeling.
+A physics-based combat space game with OpenAI Gym compatibility for reinforcement learning. Ships are controlled through thrust, turning, and shooting actions with realistic physics including aerodynamic forces. The simulation uses adaptive ODE integration via torchdiffeq for accurate physics modeling.
 
 ## Ship System
 
@@ -14,6 +14,8 @@ Each ship maintains the following state:
 - **Turn Offset**: Current turn angle offset from velocity direction (real tensor, persistent state)
 - **Boost**: Current boost energy remaining (real tensor)
 - **Health**: Current health points (real tensor)
+- **Ammo**: Current ammunition count (real tensor)
+- **Projectile States**: Position, velocity, lifetime and active status for each projectile
 
 ### Ship Parameters
 Each ship has configurable physics parameters:
@@ -43,12 +45,13 @@ Each ship has configurable physics parameters:
 ## Control System
 
 ### Action Space (Gym Compatible)
-Each ship is controlled by a MultiBinary(5) action vector:
-- **Index 0 - Left (L)**: Turn left
-- **Index 1 - Right (R)**: Turn right
-- **Index 2 - Forward (F)**: Apply forward thrust multiplier
-- **Index 3 - Backward (B)**: Apply backward thrust multiplier
+Each ship is controlled by a MultiBinary(6) action vector:
+- **Index 0 - Forward (F)**: Apply forward thrust multiplier
+- **Index 1 - Backward (B)**: Apply backward thrust multiplier
+- **Index 2 - Left (L)**: Turn left
+- **Index 3 - Right (R)**: Turn right
 - **Index 4 - Sharp Turn (S)**: Modifier to use sharp turn angles
+- **Index 5 - Shoot**: Fire projectile if ammo and cooldown allow
 
 ### Orientation Control System
 
@@ -148,18 +151,33 @@ The physics system follows a clear pipeline: action extraction, turn offset upda
 ## Default Configuration
 
 ### Physics Parameters
-- **Thrust**: 300.0 (base continuous thrust)
-- **Forward Boost**: 3.0 (multiplier when forward pressed)
-- **Backward Boost**: 2.0 (multiplier when backward pressed)
-- **Forward Energy Cost**: 5.0 (energy consumed per timestep)
-- **Backward Energy Cost**: -1.0 (regenerative braking)
-- **No Turn Drag**: 0.008 (baseline drag coefficient)
+
+#### Movement Parameters
+- **Thrust**: 10.0 (base continuous thrust)
+- **Forward Boost**: 5.0 (multiplier when forward pressed)
+- **Backward Boost**: 0.0 (multiplier when backward pressed)
+- **Forward Energy Cost**: 50.0 (energy consumed per timestep)
+- **Backward Energy Cost**: -10.0 (regenerative braking)
+- **Base Energy Cost**: -10.0 (passive energy regeneration)
+- **No Turn Drag**: 8e-4 (baseline drag coefficient)
 - **Normal Turn Angle**: 5° (standard turn offset)
-- **Normal Turn Lift**: 1.0 (lift coefficient for normal turns)
-- **Normal Turn Drag**: 0.01 (additional drag when turning)
+- **Normal Turn Lift**: 15e-3 (lift coefficient for normal turns)
+- **Normal Turn Drag**: 1e-3 (additional drag when turning)
 - **Sharp Turn Angle**: 15° (enhanced turn offset)
-- **Sharp Turn Lift**: 1.5 (increased lift for sharp turns)
-- **Sharp Turn Drag**: 0.03 (higher drag penalty for sharp turns)
+- **Sharp Turn Lift**: 30e-3 (increased lift for sharp turns)
+- **Sharp Turn Drag**: 3e-3 (higher drag penalty for sharp turns)
+
+#### Combat Parameters
+- **Max Projectiles**: 16 (per ship)
+- **Projectile Speed**: 500.0
+- **Projectile Damage**: 20.0
+- **Projectile Lifetime**: 1.0 seconds
+- **Firing Cooldown**: 0.04 seconds
+- **Max Ammo**: 32.0
+- **Ammo Regen Rate**: 4.0 per second
+- **Projectile Spread**: 3° random deviation
+
+#### Physical Properties
 - **Collision Radius**: 10.0 (collision detection radius)
 - **Max Boost**: 100.0 (maximum energy capacity)
 - **Max Health**: 100.0 (maximum health points)
@@ -180,28 +198,34 @@ The physics system follows a clear pipeline: action extraction, turn offset upda
 ## World System
 
 ### Boundaries
-World boundaries can be configured as walls (collision), wrap-around (toroidal), or open space (unlimited). Collision boundaries instantly destroy the ship when hit.
+The world uses a wrap-around (toroidal) boundary system. When ships or projectiles cross the world boundaries, they appear on the opposite side, maintaining their velocity and heading.
 
 ### Multi-Ship Interactions
-Ships interact through collision detection using configurable collision radii. Collisions can result in health damage, momentum transfer, or elimination depending on game mode settings.
+Ships interact through:
+- Collision detection using configurable collision radii
+- Projectile combat system
+- Independent health and ammo management
+- Support for both player-controlled and AI-controlled ships
 
-### Environmental Effects
-Support for environmental factors such as gravity wells, wind resistance, or area-specific physics modifications. These effects modify the base physics calculations during force computation.
+### Combat System
+The game implements a projectile-based combat system with the following features:
+- Limited ammunition with regeneration
+- Projectile spread for balanced gameplay
+- Damage-based health system
+- Independent firing cooldowns per ship
+- Projectile lifetime limiting effective range
 
 ## Game Modes
 
-### Training Scenarios
-- **Free Flight**: Open exploration with survival objectives
-- **Racing**: Checkpoint-based navigation challenges
-- **Combat**: Last-ship-standing elimination matches
-- **Cooperative**: Multi-ship collaborative objectives
-- **Obstacle Course**: Navigation through static hazards
+### Current Implementation
+- **Combat Arena**: Free-for-all combat with wrap-around boundaries
+- **Mixed Control**: One player-controlled ship with AI opponents
+- **Training Mode**: Support for AI training through OpenAI Gym interface
 
 ### Evaluation Metrics
-- **Performance**: Task completion time and efficiency
-- **Robustness**: Success rate across various scenarios
-- **Energy Management**: Optimal boost usage strategies
-- **Multi-Agent Coordination**: Cooperative behavior emergence
+- **Combat Performance**: Hits, kills, and survival time
+- **Resource Management**: Energy and ammo efficiency
+- **Movement Skill**: Evasion and pursuit capabilities
 
 ## Future Extensions
 
