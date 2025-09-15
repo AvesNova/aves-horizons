@@ -15,8 +15,11 @@ class Environment:
         self.world_size = torch.tensor(world_size)
         self.n_ships = n_ships
         self.n_obstacles = n_obstacles
-        self.memory_length = 8
-        self.ships: deque[Ships] = deque(maxlen=self.memory_length)
+        self.memory_length = memory_length
+        # Store history of ships states for memory/transformer usage
+        self.ships_history: deque[Ships] = deque(maxlen=self.memory_length)
+        # Current ships state that physics and collision systems work with
+        self.ships: Ships = None
         self.projectiles = {}
         self.obstacles = self._generate_obstacles()
         self.physics_engine = ShipPhysics()
@@ -34,17 +37,17 @@ class Environment:
         return obstacles
 
     def reset(self):
-        self.ships.append(
-            Ships.from_scalars(n_ships=self.n_ships, world_size=self.world_size)
-        )
+        # Create new ships state
+        self.ships = Ships.from_scalars(n_ships=self.n_ships, world_size=self.world_size)
+        # Add to history
+        self.ships_history.append(copy.deepcopy(self.ships))
         self.projectiles = {}
         return self.get_observation()
 
     def step(self, actions):
 
         # Update ships
-
-        self.physics_engine(ships, actions)
+        self.physics_engine(self.ships, actions)
 
         # Handle ship firing
         self._handle_ship_firing(actions)
@@ -58,6 +61,9 @@ class Environment:
         # Check all collisions (optimized)
         self._check_all_collisions()
 
+        # Add current state to history after all updates
+        self.ships_history.append(copy.deepcopy(self.ships))
+
         # Get observation
         observation = self.get_observation()
 
@@ -65,7 +71,7 @@ class Environment:
         rewards = torch.zeros(self.n_ships)
 
         # Check if episode is done
-        done = torch.all(self.ships.health <= 0)
+        done = torch.all(self.ships.health <= 0).item()  # Convert to Python bool
 
         return observation, rewards, done
 
@@ -212,6 +218,7 @@ class Environment:
         # This will be refined in later stages
         return {
             "ships": self.ships,
+            "ships_history": list(self.ships_history),  # Make available for transformer/memory systems
             "projectiles": self.projectiles,
             "obstacles": self.obstacles,
         }
