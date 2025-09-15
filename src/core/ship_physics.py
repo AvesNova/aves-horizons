@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torchdiffeq import odeint
 
-from core.ship import Ships
+from core.ships import Ships
 from utils.config import Actions
 
 

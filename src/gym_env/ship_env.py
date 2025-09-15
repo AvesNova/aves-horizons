@@ -4,7 +4,7 @@ import torch
 from gymnasium import spaces
 from typing import Any, Dict, Tuple, Optional
 
-from core.environent import Environment
+from core.environment import Environment
 from utils.config import Actions
 
 

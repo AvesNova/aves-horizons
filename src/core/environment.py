@@ -1,17 +1,22 @@
+from collections import deque
+import copy
 import torch
 
-from core.ship import Ships
+from core.ships import Ships
 from core.ship_physics import ShipPhysics
 from core.projectile import update_projectiles, fire_projectile
 from utils.config import Actions
 
 
 class Environment:
-    def __init__(self, world_size=(1200, 800), n_ships=2, n_obstacles=5):
+    def __init__(
+        self, world_size=(1200, 800), n_ships=2, n_obstacles=5, memory_length=8
+    ):
         self.world_size = torch.tensor(world_size)
         self.n_ships = n_ships
         self.n_obstacles = n_obstacles
-        self.ships = None
+        self.memory_length = 8
+        self.ships: deque[Ships] = deque(maxlen=self.memory_length)
         self.projectiles = {}
         self.obstacles = self._generate_obstacles()
         self.physics_engine = ShipPhysics()
@@ -29,15 +34,17 @@ class Environment:
         return obstacles
 
     def reset(self):
-        self.ships = Ships.from_scalars(
-            n_ships=self.n_ships, world_size=self.world_size
+        self.ships.append(
+            Ships.from_scalars(n_ships=self.n_ships, world_size=self.world_size)
         )
         self.projectiles = {}
         return self.get_observation()
 
     def step(self, actions):
+
         # Update ships
-        self.physics_engine(self.ships, actions)
+
+        self.physics_engine(ships, actions)
 
         # Handle ship firing
         self._handle_ship_firing(actions)

@@ -1,6 +1,6 @@
 import pygame
 import torch
-from core.environent import Environment
+from core.environment import Environment
 from rendering.pygame_renderer import PygameRenderer
 from utils.config import Actions
 
