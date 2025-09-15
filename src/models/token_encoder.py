@@ -16,9 +16,9 @@ class ShipTokenEncoder:
     """
     Encodes ship states into transformer tokens following the model specification.
     
-    Token Format (12-dimensional base tokens):
+    Token Format (13-dimensional base tokens):
     [pos_x, pos_y, vel_x, vel_y, attitude_x, attitude_y, turn_offset,
-     boost_norm, health_norm, ammo_norm, is_shooting, timestep_offset]
+     boost_norm, health_norm, ammo_norm, is_shooting, team_id, timestep_offset]
      
     Features:
     - Coordinate normalization
@@ -55,43 +55,56 @@ class ShipTokenEncoder:
             actions: Optional actions tensor [n_ships, 6] for shooting state
             
         Returns:
-            tokens: [n_ships, 12] Base token tensor
+            tokens: [n_ships, 13] Base token tensor
         """
+        # Only encode active (alive) ships
+        active_mask = ships.get_active_mask()
+        n_active_ships = torch.sum(active_mask).item()
         n_ships = min(ships.n_ships, self.max_ships)
         
-        # Extract and normalize coordinates
+        # Create mask for ships to encode (both active and within max_ships limit)
+        encode_mask = active_mask[:n_ships]
+        
+        # If no active ships, return empty tensor
+        if n_active_ships == 0:
+            return torch.zeros((0, 13))
+        
+        # Extract and normalize coordinates only for active ships
+        active_indices = torch.where(encode_mask)[0]
+        
         if self.normalize_coordinates:
-            pos_x = ships.position.real[:n_ships] / self.world_size[0]
-            pos_y = ships.position.imag[:n_ships] / self.world_size[1]
-            vel_x = ships.velocity.real[:n_ships] / self.max_speed
-            vel_y = ships.velocity.imag[:n_ships] / self.max_speed
+            pos_x = ships.position.real[active_indices] / self.world_size[0]
+            pos_y = ships.position.imag[active_indices] / self.world_size[1]
+            vel_x = ships.velocity.real[active_indices] / self.max_speed
+            vel_y = ships.velocity.imag[active_indices] / self.max_speed
         else:
-            pos_x = ships.position.real[:n_ships]
-            pos_y = ships.position.imag[:n_ships]
-            vel_x = ships.velocity.real[:n_ships]
-            vel_y = ships.velocity.imag[:n_ships]
+            pos_x = ships.position.real[active_indices]
+            pos_y = ships.position.imag[active_indices]
+            vel_x = ships.velocity.real[active_indices]
+            vel_y = ships.velocity.imag[active_indices]
         
         # Extract attitude components
-        attitude_x = ships.attitude.real[:n_ships]  # cos(θ)
-        attitude_y = ships.attitude.imag[:n_ships]  # sin(θ)
+        attitude_x = ships.attitude.real[active_indices]  # cos(θ)
+        attitude_y = ships.attitude.imag[active_indices]  # sin(θ)
         
         # Extract normalized state values
-        turn_offset = ships.turn_offset[:n_ships]
-        boost_norm = ships.boost[:n_ships] / ships.max_boost[:n_ships]
-        health_norm = ships.health[:n_ships] / ships.max_health[:n_ships]
-        ammo_norm = ships.ammo_count[:n_ships] / ships.max_ammo[:n_ships]
+        turn_offset = ships.turn_offset[active_indices]
+        boost_norm = ships.boost[active_indices] / ships.max_boost[active_indices]
+        health_norm = ships.health[active_indices] / ships.max_health[active_indices]
+        ammo_norm = ships.ammo_count[active_indices] / ships.max_ammo[active_indices]
+        team_id = ships.team_id[active_indices].float()  # Convert team IDs to float for tokens
         
         # Determine shooting state
         if actions is not None and actions.shape[0] >= n_ships:
             # Assuming action index 5 is shoot
-            is_shooting = actions[:n_ships, 5].float()
+            is_shooting = actions[active_indices, 5].float()
         else:
-            is_shooting = torch.zeros(n_ships)
+            is_shooting = torch.zeros(len(active_indices))
         
         # Create timestep offset tensor
-        timestep_offset_tensor = torch.full((n_ships,), timestep_offset)
+        timestep_offset_tensor = torch.full((len(active_indices),), timestep_offset)
         
-        # Stack all components into tokens [n_ships, 12]
+        # Stack all components into tokens [n_active_ships, 13]
         tokens = torch.stack([
             pos_x, pos_y,                    # Position (2)
             vel_x, vel_y,                    # Velocity (2)
@@ -101,6 +114,7 @@ class ShipTokenEncoder:
             health_norm,                     # Health normalized (1)
             ammo_norm,                       # Ammo normalized (1)
             is_shooting,                     # Shooting state (1)
+            team_id,                         # Team ID (1)
             timestep_offset_tensor           # Temporal offset (1)
         ], dim=1)
         
@@ -297,7 +311,7 @@ class ShipTokenEncoder:
     
     def get_token_dim(self) -> int:
         """Get the dimensionality of base tokens."""
-        return 12
+        return 13
     
     def set_world_size(self, world_size: Tuple[float, float]):
         """Update world size for coordinate normalization."""
@@ -352,11 +366,11 @@ class BatchTokenEncoder:
             actions_batch: Optional list of action tensors
             
         Returns:
-            tokens: [batch_size, max_ships, 12] Batched tokens
+            tokens: [batch_size, max_ships, 13] Batched tokens
             ship_ids: [batch_size, max_ships] Ship IDs
         """
         batch_size = len(ships_batch)
-        tokens_batch = torch.zeros(batch_size, self.max_ships, 12)
+        tokens_batch = torch.zeros(batch_size, self.max_ships, 13)
         ship_ids_batch = torch.zeros(batch_size, self.max_ships, dtype=torch.long)
         
         for i, ships in enumerate(ships_batch):

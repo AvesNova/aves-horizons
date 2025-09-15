@@ -256,21 +256,128 @@ class ShipPhysics(nn.Module):
         Returns:
             Updated ships with new state after physics simulation
         """
+        # Update active status based on health
+        ships.update_active_status()
+        
+        # Only process active ships
+        active_mask = ships.get_active_mask()
+        
+        # If no ships are active, return early
+        if not torch.any(active_mask):
+            return ships
+            
         action_states = self.extract_action_states(actions)
 
-        # Update turn offset based on action combinations
-        self.update_turn_offset(ships, action_states)
+        # Update turn offset based on action combinations (only for active ships)
+        self.update_turn_offset_masked(ships, action_states, active_mask)
 
-        # Update attitude based on velocity direction + turn offset
-        self.update_attitude(ships)
+        # Update attitude based on velocity direction + turn offset (only for active ships)
+        self.update_attitude_masked(ships, active_mask)
 
-        # Update energy based on actions
-        self.update_energy(ships, action_states)
+        # Update energy based on actions (only for active ships)
+        self.update_energy_masked(ships, action_states, active_mask)
 
-        # Perform physics integration
-        self.integrate_step(ships, actions)
+        # Perform physics integration (only for active ships)
+        self.integrate_step_masked(ships, actions, active_mask)
 
         # Update attitude again after integration (velocity may have changed)
-        self.update_attitude(ships)
+        self.update_attitude_masked(ships, active_mask)
 
         return ships
+    
+    def update_turn_offset_masked(self, ships: Ships, action_states: ActionStates, active_mask: torch.Tensor) -> None:
+        """Update turn offset for active ships only."""
+        if not torch.any(active_mask):
+            return
+            
+        # Get turn angle from ships' lookup table
+        turn_angles = ships.get_turn_angle(
+            action_states.left, action_states.right, action_states.sharp_turn
+        )
+
+        # Handle special cases where both L and R are pressed (maintain current offset)
+        both_lr_pressed = action_states.left & action_states.right
+
+        # Update turn offset only for active ships
+        new_turn_offset = torch.where(
+            both_lr_pressed,
+            ships.turn_offset,  # Keep current
+            turn_angles,  # Update to new angle from lookup
+        )
+        
+        ships.turn_offset = torch.where(
+            active_mask,
+            new_turn_offset,
+            ships.turn_offset  # Keep unchanged for inactive ships
+        )
+    
+    def update_attitude_masked(self, ships: Ships, active_mask: torch.Tensor) -> None:
+        """Update attitude for active ships only."""
+        if not torch.any(active_mask):
+            return
+            
+        speed = torch.abs(ships.velocity)
+        
+        # Only update attitude for active ships with sufficient velocity
+        update_mask = active_mask & (speed > self.min_velocity_threshold)
+        
+        if torch.any(update_mask):
+            # Calculate velocity direction (normalized velocity)
+            velocity_direction = ships.velocity / speed
+            # Apply turn offset to velocity direction
+            new_attitude = velocity_direction * torch.exp(1j * ships.turn_offset)
+            
+            ships.attitude = torch.where(
+                update_mask,
+                new_attitude,
+                ships.attitude  # Keep unchanged for inactive ships
+            )
+    
+    def update_energy_masked(self, ships: Ships, action_states: ActionStates, active_mask: torch.Tensor) -> None:
+        """Update energy for active ships only."""
+        if not torch.any(active_mask):
+            return
+            
+        # Get energy cost from ships' lookup table
+        energy_cost = ships.get_energy_cost(
+            action_states.forward, action_states.backward
+        )
+
+        # Calculate new boost energy
+        new_boost = ships.boost - energy_cost * self.target_timestep
+        new_boost = torch.clamp(new_boost, torch.tensor(0.0), ships.max_boost)
+        
+        # Update energy only for active ships
+        ships.boost = torch.where(
+            active_mask,
+            new_boost,
+            ships.boost  # Keep unchanged for inactive ships
+        )
+    
+    def integrate_step_masked(self, ships: Ships, actions: torch.Tensor, active_mask: torch.Tensor) -> None:
+        """Perform integration only for active ships."""
+        if not torch.any(active_mask):
+            return
+            
+        # For simplicity, we'll still integrate all ships but only apply results to active ones
+        # This avoids complex indexing in the ODE solver
+        
+        # Store original state for inactive ships
+        original_position = ships.position.clone()
+        original_velocity = ships.velocity.clone()
+        
+        # Perform full integration (including inactive ships)
+        self.integrate_step(ships, actions)
+        
+        # Restore original state for inactive ships
+        ships.position = torch.where(
+            active_mask,
+            ships.position,  # Use new integrated position
+            original_position  # Restore original position
+        )
+        
+        ships.velocity = torch.where(
+            active_mask,
+            ships.velocity,  # Use new integrated velocity
+            original_velocity  # Restore original velocity
+        )

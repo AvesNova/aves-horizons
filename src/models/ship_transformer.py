@@ -50,9 +50,9 @@ class ShipTransformer(nn.Module):
     Token sequence format:
     [ship0_t-5, ship1_t-5, ..., ship0_t-4, ship1_t-4, ..., ship0_t-0, ship1_t-0]
     
-    Each base token is 12-dimensional:
+    Each base token is 13-dimensional:
     [pos_x, pos_y, vel_x, vel_y, attitude_x, attitude_y, turn_offset,
-     boost_norm, health_norm, ammo_norm, is_shooting, timestep_offset]
+     boost_norm, health_norm, ammo_norm, is_shooting, team_id, timestep_offset]
     """
     
     def __init__(
@@ -64,7 +64,7 @@ class ShipTransformer(nn.Module):
         dropout: float = 0.1,
         max_ships: int = 8,
         sequence_length: int = 6,
-        base_token_dim: int = 12,
+        base_token_dim: int = 13,
         action_dim: int = 6,
         use_positional_encoding: bool = True,
     ):
@@ -321,7 +321,7 @@ class ShipTransformerMVP(ShipTransformer):
             'dropout': 0.1,
             'max_ships': 8,
             'sequence_length': 6,
-            'base_token_dim': 12,
+            'base_token_dim': 13,  # Updated to include team_id
             'action_dim': 6,
             'use_positional_encoding': False,  # No complex encodings for MVP
         }

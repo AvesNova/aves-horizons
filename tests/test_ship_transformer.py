@@ -28,7 +28,7 @@ class TestShipTransformer:
         assert model.num_layers == 3
         assert model.max_ships == 8  # Default for MVP
         assert model.sequence_length == 6  # Default for MVP
-        assert model.base_token_dim == 12
+        assert model.base_token_dim == 13
         assert model.action_dim == 6
         
     def test_model_forward_pass(self):
@@ -38,7 +38,7 @@ class TestShipTransformer:
         batch_size = 2
         sequence_length = 6
         n_ships = 8
-        token_dim = 12
+        token_dim = 13
         
         # Create dummy input in the expected format
         tokens = torch.randn(batch_size, sequence_length * n_ships, token_dim)
@@ -83,7 +83,7 @@ class TestShipTransformer:
         # Create dummy tokens
         batch_size = 1
         seq_len = 8
-        token_dim = 12
+        token_dim = 13
         tokens = torch.randn(batch_size, seq_len, token_dim)
         
         # Test input projection
@@ -99,7 +99,7 @@ class TestShipTransformer:
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
         # Create deterministic input
-        tokens = torch.ones(1, 48, 12)  # 6 timesteps * 8 ships = 48
+        tokens = torch.ones(1, 48, 13)  # 6 timesteps * 8 ships = 48
         ship_ids = torch.zeros(1, 48, dtype=torch.long)
         for i in range(48):
             ship_ids[0, i] = i % 8
@@ -117,7 +117,7 @@ class TestShipTransformer:
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
         seq_len = 48  # 6 * 8
-        token_dim = 12
+        token_dim = 13
         
         # Test with different batch sizes
         for batch_size in [1, 2, 4]:
@@ -138,7 +138,7 @@ class TestShipTransformer:
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
         # Create simple input
-        tokens = torch.zeros(1, 48, 12)
+        tokens = torch.zeros(1, 48, 13)
         ship_ids = torch.arange(48) % 8
         ship_ids = ship_ids.unsqueeze(0)
         
@@ -157,7 +157,7 @@ class TestShipTransformer:
         """Test that gradients can flow through the model."""
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
-        tokens = torch.randn(1, 48, 12, requires_grad=True)
+        tokens = torch.randn(1, 48, 13, requires_grad=True)
         ship_ids = torch.arange(48) % 8
         ship_ids = ship_ids.unsqueeze(0)
         

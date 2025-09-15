@@ -63,6 +63,8 @@ class Ships:
     turn_offset: torch.Tensor  # Real tensor for turn angle offset
     boost: torch.Tensor  # Current boost energy
     health: torch.Tensor  # Current health points
+    team_id: torch.Tensor  # Team ID for each ship (integer tensor)
+    active: torch.Tensor  # Boolean tensor indicating which ships are alive/active
 
     # Projectile System State
     projectile_index: torch.Tensor  # Current projectile firing index per ship
@@ -117,6 +119,9 @@ class Ships:
         self.boost = self.max_boost.clone()
         self.health = self.max_health.clone()
         self.turn_offset = torch.zeros(self.n_ships)
+        # Initialize active mask - all ships start alive
+        if not hasattr(self, 'active') or self.active is None:
+            self.active = torch.ones(self.n_ships, dtype=torch.bool)
 
         # Build lookup tables from individual parameters
         self._build_lookup_tables()
@@ -206,6 +211,14 @@ class Ships:
 
     def get_lift_coefficient(self, sharp: torch.Tensor) -> torch.Tensor:
         return self.lift_coefficients[sharp.long(), self.ship_arange]
+    
+    def update_active_status(self):
+        """Update active mask based on ship health. Ships with health <= 0 become inactive."""
+        self.active = self.health > 0
+    
+    def get_active_mask(self) -> torch.Tensor:
+        """Get boolean mask of active (alive) ships."""
+        return self.active
 
     @classmethod
     def from_scalars(
@@ -216,6 +229,7 @@ class Ships:
         initial_position: complex = 0 + 0j,
         initial_velocity: complex = 100 + 0j,  # Moving right
         initial_attitude: complex = 1 + 0j,  # Facing right
+        team_ids: list = None,  # List of team IDs for each ship
         # Thrust system defaults
         thrust: float = 10.0,
         forward_boost: float = 8.0,
@@ -278,6 +292,13 @@ class Ships:
             (n_ships,), initial_attitude, dtype=torch.complex64
         )
 
+        # Team IDs
+        if team_ids is None:
+            team_id_tensor = torch.zeros(n_ships, dtype=torch.long)
+        else:
+            assert len(team_ids) == n_ships, "team_ids length must match n_ships"
+            team_id_tensor = torch.tensor(team_ids, dtype=torch.long)
+
         return cls(
             n_ships=n_ships,
             # State variables (will be initialized in __post_init__)
@@ -287,6 +308,8 @@ class Ships:
             turn_offset=torch.zeros(n_ships),
             boost=torch.zeros(n_ships),
             health=torch.zeros(n_ships),
+            team_id=team_id_tensor,
+            active=torch.ones(n_ships, dtype=torch.bool),
             # Projectile System State
             projectile_index=torch.zeros(n_ships, dtype=torch.long),
             projectile_cooldown=torch.zeros(n_ships),

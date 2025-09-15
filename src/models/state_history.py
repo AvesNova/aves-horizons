@@ -69,6 +69,7 @@ class StateHistory:
             'boost_norm': torch.ones(self.max_ships),  # Start with full boost
             'health_norm': torch.ones(self.max_ships),  # Start with full health
             'ammo_norm': torch.ones(self.max_ships),    # Start with full ammo
+            'team_id': torch.zeros(self.max_ships, dtype=torch.long),  # Default team 0
             'is_shooting': torch.zeros(self.max_ships, dtype=torch.bool),
             'timestep': self.current_timestep,
             'active_mask': torch.ones(self.max_ships, dtype=torch.bool)
@@ -121,6 +122,9 @@ class StateHistory:
         health_norm = ships.health / ships.max_health
         ammo_norm = ships.ammo_count / ships.max_ammo
         
+        # Extract team IDs
+        team_ids = ships.team_id if hasattr(ships, 'team_id') else torch.zeros(self.max_ships, dtype=torch.long)
+        
         # Determine shooting state from actions if provided
         if actions is not None:
             # Assuming action index 5 is shoot (from config.py)
@@ -139,6 +143,7 @@ class StateHistory:
             'boost_norm': boost_norm[:self.max_ships],
             'health_norm': health_norm[:self.max_ships],
             'ammo_norm': ammo_norm[:self.max_ships],
+            'team_id': team_ids[:self.max_ships],
             'is_shooting': is_shooting[:self.max_ships],
             'timestep': self.current_timestep,
             'active_mask': active_mask[:self.max_ships]
@@ -156,7 +161,7 @@ class StateHistory:
         Generate token sequence for transformer input.
         
         Returns:
-            tokens: [seq_len, base_token_dim] Token features
+            tokens: [seq_len, 13] Token features
             ship_ids: [seq_len] Ship ID for each token
             
         Token sequence format (time-major):
@@ -177,7 +182,7 @@ class StateHistory:
             actual_ships = state['position'].shape[0]
             for ship_id in range(self.max_ships):
                 if ship_id < actual_ships:
-                    # Extract base token features (12-dimensional as per model spec)
+                    # Extract base token features (13-dimensional as per model spec)
                     token = self._create_base_token(state, ship_id, timestep_offset)
                 else:
                     # Create a zero/empty token for non-existent ships
@@ -186,7 +191,7 @@ class StateHistory:
                 ship_ids_list.append(ship_id)
         
         # Convert to tensors
-        tokens = torch.stack(tokens_list, dim=0)  # [seq_len, 12]
+        tokens = torch.stack(tokens_list, dim=0)  # [seq_len, 13]
         ship_ids = torch.tensor(ship_ids_list, dtype=torch.long)  # [seq_len]
         
         return tokens, ship_ids
@@ -198,11 +203,11 @@ class StateHistory:
         timestep_offset: int
     ) -> torch.Tensor:
         """
-        Create 12-dimensional base token for a single ship at one timestep.
+        Create 13-dimensional base token for a single ship at one timestep.
         
         Base token format:
         [pos_x, pos_y, vel_x, vel_y, attitude_x, attitude_y, turn_offset,
-         boost_norm, health_norm, ammo_norm, is_shooting, timestep_offset]
+         boost_norm, health_norm, ammo_norm, is_shooting, team_id, timestep_offset]
         """
         position = state['position'][ship_id]
         velocity = state['velocity'][ship_id]
@@ -220,6 +225,7 @@ class StateHistory:
             state['health_norm'][ship_id].item(),    # health_norm
             state['ammo_norm'][ship_id].item(),      # ammo_norm
             float(state['is_shooting'][ship_id]),    # is_shooting (0 or 1)
+            float(state['team_id'][ship_id].item()), # team_id
             float(timestep_offset),                  # timestep_offset
         ], dtype=torch.float32)
         
@@ -227,11 +233,11 @@ class StateHistory:
     
     def _create_empty_token(self, timestep_offset: int) -> torch.Tensor:
         """
-        Create an empty 12-dimensional token for non-existent ships.
+        Create an empty 13-dimensional token for non-existent ships.
         
         Base token format:
         [pos_x, pos_y, vel_x, vel_y, attitude_x, attitude_y, turn_offset,
-         boost_norm, health_norm, ammo_norm, is_shooting, timestep_offset]
+         boost_norm, health_norm, ammo_norm, is_shooting, team_id, timestep_offset]
         """
         token = torch.tensor([
             0.0,                       # pos_x
@@ -245,6 +251,7 @@ class StateHistory:
             0.0,                       # health_norm (dead)
             0.0,                       # ammo_norm (empty)
             0.0,                       # is_shooting
+            0.0,                       # team_id (default team 0)
             float(timestep_offset),    # timestep_offset
         ], dtype=torch.float32)
         

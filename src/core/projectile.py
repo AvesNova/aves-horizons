@@ -32,8 +32,12 @@ def fire_projectile(ships, ship_idx: int) -> bool:
         ship_idx: Index of the ship firing
 
     Returns:
-        bool: True if projectile was fired, False if on cooldown or insufficient ammo
+        bool: True if projectile was fired, False if on cooldown, insufficient ammo, or ship is dead
     """
+    # Check if ship is active (alive)
+    if hasattr(ships, 'active') and not ships.active[ship_idx]:
+        return False
+        
     if ships.projectile_cooldown[ship_idx] > 0:
         return False
 

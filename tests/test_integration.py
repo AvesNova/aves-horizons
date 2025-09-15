@@ -40,7 +40,7 @@ class TestIntegration:
         # Encode ships to tokens
         tokens = encoder.encode_ships_to_tokens(ships, timestep_offset=0.0)
         
-        assert tokens.shape == (4, 12)
+        assert tokens.shape == (4, 13)
         
         # Check that positions are normalized correctly
         assert torch.allclose(tokens[:, 0], torch.tensor(0.5))  # pos_x
@@ -78,11 +78,11 @@ class TestIntegration:
         # Generate token sequence
         tokens, ship_ids = history.get_token_sequence()
         
-        assert tokens.shape == (12, 12)  # 3 timesteps * 4 ships = 12 tokens
+        assert tokens.shape == (12, 13)  # 3 timesteps * 4 ships = 12 tokens, 13 dims each
         assert ship_ids.shape == (12,)
         
         # Add batch dimension for model
-        tokens_batch = tokens.unsqueeze(0)  # [1, 12, 12]
+        tokens_batch = tokens.unsqueeze(0)  # [1, 12, 13]
         ship_ids_batch = ship_ids.unsqueeze(0)  # [1, 12]
         
         # Forward through model
@@ -204,7 +204,7 @@ class TestIntegration:
         ship_ids_batch = torch.stack(ship_ids_list, dim=0)
         
         expected_seq_len = sequence_length * 8  # 8 max ships
-        assert tokens_batch.shape == (batch_size, expected_seq_len, 12)
+        assert tokens_batch.shape == (batch_size, expected_seq_len, 13)
         assert ship_ids_batch.shape == (batch_size, expected_seq_len)
         
         # Process through model
@@ -260,7 +260,7 @@ class TestIntegration:
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
         # Create input that requires gradients
-        tokens = torch.randn(1, 48, 12, requires_grad=True)
+        tokens = torch.randn(1, 48, 13, requires_grad=True)
         ship_ids = torch.arange(48) % 8
         ship_ids = ship_ids.unsqueeze(0)
         

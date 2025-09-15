@@ -21,6 +21,10 @@ class PygameRenderer:
 
     def _create_ship_surface(self):
         """Create a ship sprite surface in Asteroids style"""
+        return self._create_ship_surface_colored((255, 255, 255))
+    
+    def _create_ship_surface_colored(self, color):
+        """Create a ship sprite surface in Asteroids style with specified color"""
         size = 32  # Size of the sprite surface
         surface = pygame.Surface((size, size), pygame.SRCALPHA)
 
@@ -38,8 +42,8 @@ class PygameRenderer:
             (center_x - ship_length // 2, center_y + ship_width // 2),  # bottom back
         ]
 
-        # Draw the ship outline in white for classic Asteroids look
-        pygame.draw.polygon(surface, (255, 255, 255), points, 2)
+        # Draw the ship outline in the specified color
+        pygame.draw.polygon(surface, color, points, 2)
         return surface
 
     def _create_projectile_surface(self):
@@ -51,7 +55,7 @@ class PygameRenderer:
 
     def convert_ships_to_dict(self, ships):
         """Convert Ships object to dictionary for rendering"""
-        return {
+        ship_dict = {
             "id": ships.id.detach().cpu().tolist(),
             "position": torch.stack([ships.position.real, ships.position.imag], dim=-1)
             .detach()
@@ -64,6 +68,12 @@ class PygameRenderer:
             "collision_radius": ships.collision_radius.detach().cpu().tolist(),
             "health": ships.health.detach().cpu().tolist(),
         }
+        
+        # Add team_id if available (for deathmatch mode)
+        if hasattr(ships, 'team_id'):
+            ship_dict["team_id"] = ships.team_id.detach().cpu().tolist()
+        
+        return ship_dict
 
     @staticmethod
     def tensors_to_numpy(nested_dict: dict) -> dict:
@@ -108,24 +118,46 @@ class PygameRenderer:
             )
             pygame.draw.rect(self.screen, (100, 100, 100), rect)
 
-        # Draw ships
+        # Draw ships (only alive ones)
         for i, ship_id in enumerate(ships["id"]):
+            health = ships["health"][i]
+            
+            # Skip dead ships
+            if health <= 0:
+                continue
+                
             pos = ships["position"][i]  # [x, y] from complex conversion
             attitude = ships["attitude"][i]  # [cos, sin] from complex conversion
             radius = ships["collision_radius"][i]
-            health = ships["health"][i]
 
             # Get rotation angle from complex unit vector
-            # Add 90 degrees (π/2) to rotate from right-facing (0°) to up-facing (90°)
             angle = math.atan2(attitude[1], attitude[0])
+            
+            # Determine ship color based on team
+            ship_color = (255, 255, 255)  # Default white
+            if "team_id" in ships:
+                team_id = ships["team_id"][i]
+                # Team colors: Blue for team 0, Red for team 1, Green for team 2, etc.
+                team_colors = [
+                    (100, 150, 255),  # Light blue
+                    (255, 100, 100),  # Light red  
+                    (100, 255, 100),  # Light green
+                    (255, 255, 100),  # Yellow
+                    (255, 100, 255),  # Magenta
+                    (100, 255, 255),  # Cyan
+                ]
+                if 0 <= team_id < len(team_colors):
+                    ship_color = team_colors[team_id]
 
+            # Create ship surface with team color
+            ship_surface = self._create_ship_surface_colored(ship_color)
+            
             # Draw ship sprite
-            # Create a copy of the surface for rotation and alpha
             rotated_surface = pygame.transform.rotate(
-                self.ship_surface, -math.degrees(angle)
+                ship_surface, -math.degrees(angle)
             )
             # Set alpha based on health
-            rotated_surface.set_alpha(int(255 * health / 100) if health > 0 else 100)
+            rotated_surface.set_alpha(int(255 * health / 100))
 
             # Get the new rect for the rotated surface
             rect = rotated_surface.get_rect(center=(pos[0], pos[1]))
@@ -140,18 +172,17 @@ class PygameRenderer:
                 (255, 0, 0),
                 (pos[0] - bar_width / 2, pos[1] - radius - 10, bar_width, bar_height),
             )
-            # Draw health (green)
-            if health > 0:
-                pygame.draw.rect(
-                    self.screen,
-                    (0, 255, 0),
-                    (
-                        pos[0] - bar_width / 2,
-                        pos[1] - radius - 10,
-                        bar_width * health / 100,
-                        bar_height,
-                    ),
-                )
+            # Draw health (green) - health > 0 is already guaranteed by the continue above
+            pygame.draw.rect(
+                self.screen,
+                (0, 255, 0),
+                (
+                    pos[0] - bar_width / 2,
+                    pos[1] - radius - 10,
+                    bar_width * health / 100,
+                    bar_height,
+                ),
+            )
 
         # Draw projectiles using sprite batching
         projectiles_pos = (
