@@ -16,9 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from core.ships import Ships
 from core.environment import Environment
-from models.ship_transformer import ShipTransformerMVP
-from models.state_history import StateHistory
-from models.token_encoder import ShipTokenEncoder
+from models.ship_nn import ShipNN
 from game_modes.deathmatch import DeathmatchEnvironment, DeathmatchConfig, create_deathmatch_game
 from .test_constants import *
 
@@ -75,71 +73,33 @@ def deathmatch_game():
 
 
 @pytest.fixture
-def test_transformer():
-    """Create a small transformer model for testing."""
-    return ShipTransformerMVP(
-        d_model=TEST_D_MODEL,
-        nhead=TEST_NHEAD,
-        num_layers=TEST_NUM_LAYERS,
+def test_ship_nn():
+    """Create a small ShipNN model for testing."""
+    return ShipNN(
+        hidden_dim=TEST_D_MODEL,
+        encoder_layers=1,
+        transformer_layers=TEST_NUM_LAYERS,
+        decoder_layers=1,
+        n_heads=TEST_NHEAD,
         max_ships=MAX_SHIPS,
         sequence_length=DEFAULT_SEQUENCE_LENGTH
     )
 
 
 @pytest.fixture
-def production_transformer():
-    """Create a full-size transformer model for integration testing."""
-    return ShipTransformerMVP(
-        d_model=DEFAULT_D_MODEL,
-        nhead=DEFAULT_NHEAD,
-        num_layers=DEFAULT_NUM_LAYERS,
+def production_ship_nn():
+    """Create a full-size ShipNN model for integration testing."""
+    return ShipNN(
+        hidden_dim=DEFAULT_D_MODEL,
+        encoder_layers=2,
+        transformer_layers=DEFAULT_NUM_LAYERS,
+        decoder_layers=2,
+        n_heads=DEFAULT_NHEAD,
         max_ships=MAX_SHIPS,
         sequence_length=DEFAULT_SEQUENCE_LENGTH
     )
 
 
-@pytest.fixture
-def state_history():
-    """Create a state history tracker for testing."""
-    return StateHistory(
-        sequence_length=DEFAULT_SEQUENCE_LENGTH,
-        max_ships=MAX_SHIPS,
-        world_size=DEFAULT_WORLD_SIZE,
-        normalize_coordinates=True
-    )
-
-
-@pytest.fixture
-def test_state_history():
-    """Create a smaller state history for faster testing."""
-    return StateHistory(
-        sequence_length=3,
-        max_ships=4,
-        world_size=TEST_WORLD_SIZE,
-        normalize_coordinates=True
-    )
-
-
-@pytest.fixture
-def token_encoder():
-    """Create a token encoder for testing."""
-    return ShipTokenEncoder(
-        world_size=DEFAULT_WORLD_SIZE,
-        max_speed=MAX_SPEED,
-        normalize_coordinates=True,
-        max_ships=MAX_SHIPS
-    )
-
-
-@pytest.fixture
-def test_token_encoder():
-    """Create a token encoder for smaller test scenarios."""
-    return ShipTokenEncoder(
-        world_size=TEST_WORLD_SIZE,
-        max_speed=MAX_SPEED,
-        normalize_coordinates=True,
-        max_ships=4
-    )
 
 
 @pytest.fixture

@@ -71,13 +71,27 @@ class EntryPointConfig:
         training_group.add_argument('--eval-frequency', type=int, default=50, help='Evaluation frequency')
         training_group.add_argument('--model-dir', type=Path, help='Directory to save/load models')
         
-        # Transformer-specific
-        training_group.add_argument('--d-model', type=int, default=ModelConfig.DEFAULT_D_MODEL,
-                                  help='Transformer model dimension')
-        training_group.add_argument('--n-head', type=int, default=ModelConfig.DEFAULT_N_HEAD,
-                                  help='Number of attention heads')
-        training_group.add_argument('--num-layers', type=int, default=ModelConfig.DEFAULT_NUM_LAYERS,
+        # ShipNN-specific
+        training_group.add_argument('--hidden-dim', type=int, default=128,
+                                  help='ShipNN hidden dimension')
+        training_group.add_argument('--encoder-layers', type=int, default=2,
+                                  help='Number of encoder layers')
+        training_group.add_argument('--transformer-layers', type=int, default=3,
                                   help='Number of transformer layers')
+        training_group.add_argument('--decoder-layers', type=int, default=2,
+                                  help='Number of decoder layers')
+        training_group.add_argument('--n-heads', type=int, default=4,
+                                  help='Number of attention heads')
+        training_group.add_argument('--dim-feedforward', type=int, default=256,
+                                  help='Transformer feedforward dimension')
+        
+        # Legacy parameters for backwards compatibility
+        training_group.add_argument('--d-model', type=int, default=None,
+                                  help='Legacy: mapped to hidden-dim')
+        training_group.add_argument('--n-head', type=int, default=None,
+                                  help='Legacy: mapped to n-heads')
+        training_group.add_argument('--num-layers', type=int, default=None,
+                                  help='Legacy: mapped to transformer-layers')
     
     def add_rendering_args(self, parser: argparse.ArgumentParser):
         """Add rendering-specific arguments to parser."""
@@ -136,19 +150,6 @@ def setup_environment_from_config(config: Dict[str, Any]):
     return env
 
 
-def setup_transformer_env_from_config(config: Dict[str, Any]):
-    """Create ShipTransformerEnv based on configuration."""
-    from gym_env.ship_transformer_env import ShipTransformerEnv
-    
-    return ShipTransformerEnv(
-        n_ships=config['n_ships'],
-        n_obstacles=config['n_obstacles'],
-        controlled_team_size=config['controlled_team_size'],
-        sequence_length=config['sequence_length'],
-        world_size=config['world_size'],
-        normalize_coordinates=True,
-        opponent_policy="random"
-    )
 
 
 def print_config(config: Dict[str, Any], title: str = "Configuration"):

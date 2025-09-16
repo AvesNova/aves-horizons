@@ -15,9 +15,7 @@ from dataclasses import asdict
 import numpy as np
 from datetime import datetime
 
-from models.ship_transformer import ShipTransformer, ShipTransformerMVP
-from models.state_history import StateHistory, BatchedStateHistory
-from models.token_encoder import ShipTokenEncoder
+from models.ship_nn import ShipNN
 
 
 class ModelCheckpoint:
@@ -120,11 +118,9 @@ class ModelCheckpoint:
         
         # Determine model class
         if model_class is None:
-            model_class_name = checkpoint_data.get('model_class', 'ShipTransformerMVP')
-            if model_class_name == 'ShipTransformer':
-                model_class = ShipTransformer
-            elif model_class_name == 'ShipTransformerMVP':
-                model_class = ShipTransformerMVP
+            model_class_name = checkpoint_data.get('model_class', 'ShipNN')
+            if model_class_name in ['ShipNN', 'ShipTransformer', 'ShipTransformerMVP']:
+                model_class = ShipNN  # Use ShipNN for all cases
             else:
                 raise ValueError(f"Unknown model class: {model_class_name}")
         
@@ -161,168 +157,6 @@ class ModelCheckpoint:
                 torch.cuda.set_rng_state(self.random_states['torch_cuda'])
 
 
-class StateHistoryPersistence:
-    """
-    Persistence utilities for StateHistory objects.
-    
-    Allows saving and loading state history for training continuity,
-    evaluation replay, and debugging purposes.
-    """
-    
-    @staticmethod
-    def save_state_history(state_history: StateHistory, filepath: str):
-        """Save StateHistory to file."""
-        # Convert deque to list for serialization
-        buffer_list = list(state_history.state_buffer)
-        
-        # Convert tensors to numpy for serialization
-        serializable_buffer = []
-        for state in buffer_list:
-            serializable_state = {}
-            for key, value in state.items():
-                if isinstance(value, torch.Tensor):
-                    serializable_state[key] = value.cpu().numpy()
-                else:
-                    serializable_state[key] = value
-            serializable_buffer.append(serializable_state)
-        
-        data = {
-            'sequence_length': state_history.sequence_length,
-            'max_ships': state_history.max_ships,
-            'world_size': state_history.world_size,
-            'normalize_coordinates': state_history.normalize_coordinates,
-            'current_timestep': state_history.current_timestep,
-            'active_ships': list(state_history.active_ships),
-            'buffer': serializable_buffer,
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        # Ensure directory exists
-        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(filepath, 'wb') as f:
-            pickle.dump(data, f)
-    
-    @staticmethod
-    def load_state_history(filepath: str) -> StateHistory:
-        """Load StateHistory from file."""
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
-        
-        # Create new StateHistory instance
-        state_history = StateHistory(
-            sequence_length=data['sequence_length'],
-            max_ships=data['max_ships'],
-            world_size=tuple(data['world_size']),
-            normalize_coordinates=data['normalize_coordinates']
-        )
-        
-        # Restore state
-        state_history.current_timestep = data['current_timestep']
-        state_history.active_ships = set(data['active_ships'])
-        
-        # Restore buffer
-        state_history.state_buffer.clear()
-        for serializable_state in data['buffer']:
-            state = {}
-            for key, value in serializable_state.items():
-                if isinstance(value, np.ndarray):
-                    if value.dtype == np.complex64 or value.dtype == np.complex128:
-                        state[key] = torch.from_numpy(value)
-                    elif 'bool' in str(value.dtype):
-                        state[key] = torch.from_numpy(value).bool()
-                    else:
-                        state[key] = torch.from_numpy(value).float()
-                else:
-                    state[key] = value
-            state_history.state_buffer.append(state)
-        
-        return state_history
-    
-    @staticmethod
-    def save_batched_state_history(batched_history: BatchedStateHistory, filepath: str):
-        """Save BatchedStateHistory to file."""
-        data = {
-            'batch_size': batched_history.batch_size,
-            'histories': []
-        }
-        
-        # Save each individual history
-        for i, history in enumerate(batched_history.histories):
-            # Convert to serializable format (same as single history)
-            buffer_list = list(history.state_buffer)
-            serializable_buffer = []
-            for state in buffer_list:
-                serializable_state = {}
-                for key, value in state.items():
-                    if isinstance(value, torch.Tensor):
-                        serializable_state[key] = value.cpu().numpy()
-                    else:
-                        serializable_state[key] = value
-                serializable_buffer.append(serializable_state)
-            
-            history_data = {
-                'sequence_length': history.sequence_length,
-                'max_ships': history.max_ships,
-                'world_size': history.world_size,
-                'normalize_coordinates': history.normalize_coordinates,
-                'current_timestep': history.current_timestep,
-                'active_ships': list(history.active_ships),
-                'buffer': serializable_buffer,
-            }
-            data['histories'].append(history_data)
-        
-        data['timestamp'] = datetime.now().isoformat()
-        
-        # Ensure directory exists
-        Path(filepath).parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(filepath, 'wb') as f:
-            pickle.dump(data, f)
-    
-    @staticmethod
-    def load_batched_state_history(filepath: str) -> BatchedStateHistory:
-        """Load BatchedStateHistory from file."""
-        with open(filepath, 'rb') as f:
-            data = pickle.load(f)
-        
-        # Get configuration from first history
-        first_history = data['histories'][0]
-        
-        # Create new BatchedStateHistory instance
-        batched_history = BatchedStateHistory(
-            batch_size=data['batch_size'],
-            sequence_length=first_history['sequence_length'],
-            max_ships=first_history['max_ships'],
-            world_size=tuple(first_history['world_size']),
-            normalize_coordinates=first_history['normalize_coordinates']
-        )
-        
-        # Restore each individual history
-        for i, history_data in enumerate(data['histories']):
-            history = batched_history.histories[i]
-            
-            # Restore state
-            history.current_timestep = history_data['current_timestep']
-            history.active_ships = set(history_data['active_ships'])
-            
-            # Restore buffer
-            history.state_buffer.clear()
-            for serializable_state in history_data['buffer']:
-                state = {}
-                for key, value in serializable_state.items():
-                    if isinstance(value, np.ndarray):
-                        if value.dtype == np.complex64 or value.dtype == np.complex128:
-                            state[key] = torch.from_numpy(value)
-                        elif 'bool' in str(value.dtype):
-                            state[key] = torch.from_numpy(value).bool()
-                        else:
-                            state[key] = torch.from_numpy(value).float()
-                    else:
-                        state[key] = value
-                history.state_buffer.append(state)
-        
-        return batched_history
 
 
 class TrainingSession:

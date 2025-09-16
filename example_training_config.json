@@ -1,0 +1,41 @@
+{
+  "comment": "Example training configuration for Aves Horizons",
+  
+  "model_parameters": {
+    "d_model": 128,
+    "n_head": 8,
+    "num_layers": 6
+  },
+  
+  "game_parameters": {
+    "n_teams": 2,
+    "ships_per_team": 3,
+    "sequence_length": 8,
+    "world_size": [1500.0, 1000.0]
+  },
+  
+  "training_parameters": {
+    "learning_rate": 0.0001,
+    "batch_size": 128,
+    "buffer_size": 200000,
+    "steps_per_update": 4096,
+    "n_epochs": 20
+  },
+  
+  "selfplay_parameters": {
+    "selfplay_update_freq": 100000,
+    "max_opponent_pool_size": 15,
+    "opponent_selection_probs": {
+      "random": 0.05,
+      "heuristic": 0.15,
+      "selfplay": 0.8
+    }
+  },
+  
+  "logging_and_saving": {
+    "log_freq": 500,
+    "save_freq": 20000,
+    "eval_freq": 10000,
+    "eval_episodes": 20
+  }
+}

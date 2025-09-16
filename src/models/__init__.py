@@ -1,7 +1,5 @@
 """Models package for the ship combat AI system."""
 
-from .ship_transformer import ShipTransformer
-from .state_history import StateHistory
-from .token_encoder import ShipTokenEncoder
+from .ship_nn import ShipNN, create_ship_nn
 
-__all__ = ['ShipTransformer', 'StateHistory', 'ShipTokenEncoder']
+__all__ = ['ShipNN', 'create_ship_nn']

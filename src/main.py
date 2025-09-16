@@ -3,8 +3,10 @@ import torch
 from rendering.pygame_renderer import PygameRenderer
 from utils.config import Actions, ModelConfig
 from utils.entry_points import (
-    entry_point_manager, setup_environment_from_config, 
-    print_config, handle_common_errors
+    entry_point_manager,
+    setup_environment_from_config,
+    print_config,
+    handle_common_errors,
 )
 
 
@@ -13,7 +15,7 @@ def main_game_loop(config):
     """Main game loop with unified configuration."""
     # Initialize environment and renderer
     env = setup_environment_from_config(config)
-    renderer = PygameRenderer(world_size=list(config['world_size']))
+    renderer = PygameRenderer(world_size=list(config["world_size"]))
 
     # Reset environment
     env.reset()
@@ -21,13 +23,15 @@ def main_game_loop(config):
     # Display game mode and controls
     print_config(config, "Game Configuration")
     print(f"Starting {config['game_mode']} mode with {config['total_ships']} ships")
-    if config['game_mode'] == 'deathmatch':
-        print(f"Teams: {ModelConfig.DEFAULT_N_TEAMS}, Ships per team: {config['ships_per_team']}")
-    
-    controlled_ship = config.get('controlled_ship', 0)
+    if config["game_mode"] == "deathmatch":
+        print(
+            f"Teams: {ModelConfig.DEFAULT_N_TEAMS}, Ships per team: {config['ships_per_team']}"
+        )
+
+    controlled_ship = config.get("controlled_ship", 0)
     print(f"Controlled ship: {controlled_ship}")
     print("Controls: WASD=move, Shift=sharp turn, Space=shoot, ESC=quit")
-    
+
     running = True
 
     while running:
@@ -38,7 +42,7 @@ def main_game_loop(config):
 
         # Get keyboard state for controlled ship
         keys = pygame.key.get_pressed()
-        total_ships = config['total_ships']
+        total_ships = config["total_ships"]
         actions = torch.zeros((total_ships, len(Actions)), dtype=torch.bool)
 
         # Control first ship with keyboard
@@ -70,16 +74,16 @@ def main_game_loop(config):
 if __name__ == "__main__":
     # Create parser with rendering-specific options
     parser = entry_point_manager.create_base_parser(
-        'Aves Horizons Space Battle Simulator\n\n'
-        'Examples:\n'
-        '  %(prog)s --game-mode standard --n-ships 10\n'
-        '  %(prog)s --game-mode deathmatch --ships-per-team 4\n'
-        '  %(prog)s --game-mode deathmatch --ships-per-team 3 --controlled-ship 2\n'
+        "Aves Horizons Space Battle Simulator\n\n"
+        "Examples:\n"
+        "  %(prog)s --game-mode standard --n-ships 10\n"
+        "  %(prog)s --game-mode deathmatch --ships-per-team 4\n"
+        "  %(prog)s --game-mode deathmatch --ships-per-team 3 --controlled-ship 2\n"
     )
     entry_point_manager.add_rendering_args(parser)
-    
+
     args = parser.parse_args()
     config = entry_point_manager.validate_args(args)
-    
+
     # Run the game
     main_game_loop(config)
