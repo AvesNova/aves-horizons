@@ -28,6 +28,7 @@ from gym_env.ship_transformer_env import ShipTransformerEnv, MultiGameShipTransf
 from models.ship_transformer import ShipTransformerMVP
 from models.state_history import StateHistory
 from models.token_encoder import ShipTokenEncoder
+from utils.config import Actions, ModelConfig
 
 
 class ShipTransformerPolicy(ActorCriticPolicy):
@@ -45,13 +46,13 @@ class ShipTransformerPolicy(ActorCriticPolicy):
         action_space: spaces.Space,
         lr_schedule: Schedule,
         # Transformer parameters
-        d_model: int = 64,
-        nhead: int = 4,
-        num_layers: int = 3,
-        sequence_length: int = 6,
-        n_ships: int = 8,
-        controlled_team_size: int = 4,
-        world_size: Tuple[float, float] = (1200.0, 800.0),
+        d_model: int = ModelConfig.DEFAULT_D_MODEL,
+        nhead: int = ModelConfig.DEFAULT_N_HEAD,
+        num_layers: int = ModelConfig.DEFAULT_NUM_LAYERS,
+        sequence_length: int = ModelConfig.DEFAULT_SEQUENCE_LENGTH,
+        n_ships: int = ModelConfig.DEFAULT_N_SHIPS,
+        controlled_team_size: int = ModelConfig.DEFAULT_CONTROLLED_TEAM_SIZE,
+        world_size: Tuple[float, float] = ModelConfig.DEFAULT_WORLD_SIZE,
         **kwargs
     ):
         # Store transformer parameters
@@ -64,7 +65,7 @@ class ShipTransformerPolicy(ActorCriticPolicy):
         self.world_size = world_size
         
         # Calculate feature dimensions
-        token_dim = 12  # Base token dimension
+        token_dim = ModelConfig.TOKEN_DIM  # Base token dimension
         self.seq_len = sequence_length * n_ships
         self.obs_dim = self.seq_len * token_dim
         
@@ -124,15 +125,15 @@ class ShipTransformerPolicy(ActorCriticPolicy):
             obs: Flattened observation tensor [batch_size, obs_dim]
             
         Returns:
-            tokens: [batch_size, seq_len, 12] Token tensor
-            ship_ids: [batch_size, seq_len] Ship ID tensor
+            tokens: [batch_size, seq_len, {}] Token tensor
+            ship_ids: [batch_size, seq_len] Ship ID tensor".format(ModelConfig.TOKEN_DIM)
         """
         batch_size = obs.shape[0] if len(obs.shape) > 1 else 1
         if len(obs.shape) == 1:
             obs = obs.unsqueeze(0)
         
         # Reshape observation to token format
-        tokens = obs.view(batch_size, self.seq_len, 12)
+        tokens = obs.view(batch_size, self.seq_len, ModelConfig.TOKEN_DIM)
         
         # Create ship IDs (time-major order)
         ship_ids = torch.zeros(batch_size, self.seq_len, dtype=torch.long, device=obs.device)

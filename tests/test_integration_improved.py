@@ -62,7 +62,8 @@ class TestImprovedIntegration:
         with torch.no_grad():
             actions = test_transformer(tokens_batch, ship_ids_batch)
         
-        assert actions.shape == (1, 4, ACTION_DIM)
+        # Model always outputs for MAX_SHIPS, but we only have 4 active ships
+        assert actions.shape == (1, MAX_SHIPS, ACTION_DIM)
         assert torch.isfinite(actions).all()
     
     def test_realistic_game_simulation(self, state_history, test_transformer):

@@ -1,48 +1,30 @@
 import pygame
 import torch
-import argparse
-import sys
-from core.environment import Environment
 from rendering.pygame_renderer import PygameRenderer
-from game_modes.deathmatch import create_deathmatch_game
-from utils.config import Actions
+from utils.config import Actions, ModelConfig
+from utils.entry_points import (
+    entry_point_manager, setup_environment_from_config, 
+    print_config, handle_common_errors
+)
 
 
-def create_environment(game_mode, n_ships, ships_per_team, n_obstacles, use_continuous_collision=True):
-    """Create environment based on game mode."""
-    if game_mode == 'deathmatch':
-        n_teams = 2  # Default to 2 teams for deathmatch
-        if ships_per_team is None:
-            ships_per_team = n_ships // n_teams
-        env = create_deathmatch_game(
-            n_teams=n_teams,
-            ships_per_team=ships_per_team,
-            world_size=(1200.0, 800.0),
-            use_continuous_collision=use_continuous_collision
-        )
-    else:  # 'standard' or default
-        env = Environment(
-            n_ships=n_ships, 
-            n_obstacles=n_obstacles,
-            use_continuous_collision=use_continuous_collision
-        )
-    
-    return env
-
-
-def main(game_mode='standard', n_ships=8, ships_per_team=None, n_obstacles=0, controlled_ship=0, use_continuous_collision=True):
-    """Main game loop with configurable parameters."""
+@handle_common_errors
+def main_game_loop(config):
+    """Main game loop with unified configuration."""
     # Initialize environment and renderer
-    env = create_environment(game_mode, n_ships, ships_per_team, n_obstacles, use_continuous_collision)
-    renderer = PygameRenderer(world_size=env.world_size.tolist())
+    env = setup_environment_from_config(config)
+    renderer = PygameRenderer(world_size=list(config['world_size']))
 
     # Reset environment
     env.reset()
 
     # Display game mode and controls
-    print(f"Starting {game_mode} mode with {env.n_ships if hasattr(env, 'n_ships') else env.total_ships} ships")
-    if game_mode == 'deathmatch':
-        print(f"Teams: {env.config.n_teams}, Ships per team: {env.config.ships_per_team}")
+    print_config(config, "Game Configuration")
+    print(f"Starting {config['game_mode']} mode with {config['total_ships']} ships")
+    if config['game_mode'] == 'deathmatch':
+        print(f"Teams: {ModelConfig.DEFAULT_N_TEAMS}, Ships per team: {config['ships_per_team']}")
+    
+    controlled_ship = config.get('controlled_ship', 0)
     print(f"Controlled ship: {controlled_ship}")
     print("Controls: WASD=move, Shift=sharp turn, Space=shoot, ESC=quit")
     
@@ -56,7 +38,7 @@ def main(game_mode='standard', n_ships=8, ships_per_team=None, n_obstacles=0, co
 
         # Get keyboard state for controlled ship
         keys = pygame.key.get_pressed()
-        total_ships = env.n_ships if hasattr(env, 'n_ships') else env.total_ships
+        total_ships = config['total_ships']
         actions = torch.zeros((total_ships, len(Actions)), dtype=torch.bool)
 
         # Control first ship with keyboard
@@ -86,44 +68,18 @@ def main(game_mode='standard', n_ships=8, ships_per_team=None, n_obstacles=0, co
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description='Aves Horizons Space Battle Simulator',
-        epilog='Examples:\n'
-               '  %(prog)s --game-mode standard --n-ships 10\n'
-               '  %(prog)s --game-mode deathmatch --ships-per-team 4\n'
-               '  %(prog)s --game-mode deathmatch --ships-per-team 3 --controlled-ship 2\n',
-        formatter_class=argparse.RawDescriptionHelpFormatter
+    # Create parser with rendering-specific options
+    parser = entry_point_manager.create_base_parser(
+        'Aves Horizons Space Battle Simulator\n\n'
+        'Examples:\n'
+        '  %(prog)s --game-mode standard --n-ships 10\n'
+        '  %(prog)s --game-mode deathmatch --ships-per-team 4\n'
+        '  %(prog)s --game-mode deathmatch --ships-per-team 3 --controlled-ship 2\n'
     )
-    parser.add_argument('--game-mode', choices=['standard', 'deathmatch'], 
-                        default='standard', help='Game mode to play')
-    parser.add_argument('--n-ships', type=int, default=8, 
-                        help='Total number of ships (for standard mode)')
-    parser.add_argument('--ships-per-team', type=int, default=None, 
-                        help='Ships per team (for deathmatch mode)')
-    parser.add_argument('--n-obstacles', type=int, default=0, 
-                        help='Number of obstacles in the environment (recommend 0 for training since ships cannot see obstacles yet)')
-    parser.add_argument('--controlled-ship', type=int, default=0, 
-                        help='Which ship to control with keyboard (0-indexed)')
-    parser.add_argument('--disable-continuous-collision', action='store_true',
-                        help='Disable continuous collision detection (may cause projectiles to phase through ships at low frame rates)')
+    entry_point_manager.add_rendering_args(parser)
     
     args = parser.parse_args()
+    config = entry_point_manager.validate_args(args)
     
-    # Validate arguments based on game mode
-    if args.game_mode == 'deathmatch':
-        if args.ships_per_team is None:
-            args.ships_per_team = args.n_ships // 2  # Default to 2 teams
-        total_ships = 2 * args.ships_per_team  # Assuming 2 teams
-    else:
-        total_ships = args.n_ships
-    
-    if args.controlled_ship >= total_ships:
-        print(f"Error: controlled-ship ({args.controlled_ship}) must be less than total ships ({total_ships})")
-        sys.exit(1)
-    
-    main(game_mode=args.game_mode, 
-         n_ships=args.n_ships, 
-         ships_per_team=args.ships_per_team,
-         n_obstacles=args.n_obstacles, 
-         controlled_ship=args.controlled_ship,
-         use_continuous_collision=not args.disable_continuous_collision)
+    # Run the game
+    main_game_loop(config)

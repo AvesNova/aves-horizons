@@ -10,15 +10,15 @@ from typing import Dict, List, Tuple, Optional, Union
 import numpy as np
 
 from core.ships import Ships
+from utils.config import ModelConfig
 
 
 class ShipTokenEncoder:
     """
     Encodes ship states into transformer tokens following the model specification.
     
-    Token Format (13-dimensional base tokens):
-    [pos_x, pos_y, vel_x, vel_y, attitude_x, attitude_y, turn_offset,
-     boost_norm, health_norm, ammo_norm, is_shooting, team_id, timestep_offset]
+    Token Format ({}-dimensional base tokens):
+    {}
      
     Features:
     - Coordinate normalization
@@ -26,7 +26,10 @@ class ShipTokenEncoder:
     - Ship identity handling
     - Batch processing support
     - Flexible input formats
-    """
+    """.format(
+        ModelConfig.TOKEN_DIM,
+        ', '.join([f'{name}[{idx}]' for name, idx in sorted(ModelConfig.TOKEN_FEATURES.items(), key=lambda x: x[1])])
+    )
     
     def __init__(
         self,
@@ -67,7 +70,7 @@ class ShipTokenEncoder:
         
         # If no active ships, return empty tensor
         if n_active_ships == 0:
-            return torch.zeros((0, 13))
+            return torch.zeros((0, ModelConfig.TOKEN_DIM))
         
         # Extract and normalize coordinates only for active ships
         active_indices = torch.where(encode_mask)[0]
@@ -141,6 +144,9 @@ class ShipTokenEncoder:
         velocity = state['velocity'][ship_id]
         attitude = state['attitude'][ship_id]
         
+        # Get team_id (default to 0 if not present)
+        team_id = float(state['team_id'][ship_id]) if 'team_id' in state else 0.0
+        
         token = torch.tensor([
             position.real.item(),                    # pos_x
             position.imag.item(),                    # pos_y
@@ -153,6 +159,7 @@ class ShipTokenEncoder:
             state['health_norm'][ship_id].item(),    # health_norm
             state['ammo_norm'][ship_id].item(),      # ammo_norm
             float(state['is_shooting'][ship_id]),    # is_shooting (0 or 1)
+            team_id,                                 # team_id
             float(timestep_offset),                  # timestep_offset
         ], dtype=torch.float32)
         
@@ -173,8 +180,8 @@ class ShipTokenEncoder:
             sequence_length: Number of timesteps to include
             
         Returns:
-            tokens: [seq_len, 12] Token sequence
-            ship_ids: [seq_len] Ship ID for each token
+            tokens: [seq_len, {}] Token sequence
+            ship_ids: [seq_len] Ship ID for each token".format(ModelConfig.TOKEN_DIM)
         """
         # Trim history to sequence length
         ships_history = ships_history[-sequence_length:]
@@ -200,8 +207,8 @@ class ShipTokenEncoder:
                 ship_ids_list.append(ship_id)
         
         # Convert to tensors
-        tokens = torch.stack(tokens_list, dim=0)  # [seq_len, 12]
-        ship_ids = torch.tensor(ship_ids_list, dtype=torch.long)  # [seq_len]
+        tokens = torch.stack(tokens_list, dim=0)  # [seq_len, {}]
+        ship_ids = torch.tensor(ship_ids_list, dtype=torch.long)  # [seq_len]".format(ModelConfig.TOKEN_DIM)
         
         return tokens, ship_ids
     
@@ -220,8 +227,8 @@ class ShipTokenEncoder:
             sequence_length: Number of timesteps to include
             
         Returns:
-            tokens: [batch_size, seq_len, 12] Batched token sequences
-            ship_ids: [batch_size, seq_len] Batched ship IDs
+            tokens: [batch_size, seq_len, {}] Batched token sequences
+            ship_ids: [batch_size, seq_len] Batched ship IDs".format(ModelConfig.TOKEN_DIM)
         """
         batch_size = len(ships_batch_history)
         tokens_list = []
@@ -239,8 +246,8 @@ class ShipTokenEncoder:
             ship_ids_list.append(ship_ids)
         
         # Stack into batch tensors
-        tokens_batch = torch.stack(tokens_list, dim=0)  # [batch_size, seq_len, 12]
-        ship_ids_batch = torch.stack(ship_ids_list, dim=0)  # [batch_size, seq_len]
+        tokens_batch = torch.stack(tokens_list, dim=0)  # [batch_size, seq_len, {}]
+        ship_ids_batch = torch.stack(ship_ids_list, dim=0)  # [batch_size, seq_len]".format(ModelConfig.TOKEN_DIM)
         
         return tokens_batch, ship_ids_batch
     
@@ -253,8 +260,8 @@ class ShipTokenEncoder:
         Decode tokens back to state representation (for debugging/analysis).
         
         Args:
-            tokens: [seq_len, 12] Token tensor
-            ship_ids: [seq_len] Ship ID for each token
+            tokens: [seq_len, {}] Token tensor
+            ship_ids: [seq_len] Ship ID for each token".format(ModelConfig.TOKEN_DIM)
             
         Returns:
             state: Dictionary containing decoded state information
@@ -311,7 +318,7 @@ class ShipTokenEncoder:
     
     def get_token_dim(self) -> int:
         """Get the dimensionality of base tokens."""
-        return 13
+        return ModelConfig.TOKEN_DIM
     
     def set_world_size(self, world_size: Tuple[float, float]):
         """Update world size for coordinate normalization."""
@@ -366,11 +373,11 @@ class BatchTokenEncoder:
             actions_batch: Optional list of action tensors
             
         Returns:
-            tokens: [batch_size, max_ships, 13] Batched tokens
-            ship_ids: [batch_size, max_ships] Ship IDs
+            tokens: [batch_size, max_ships, {}] Batched tokens
+            ship_ids: [batch_size, max_ships] Ship IDs".format(ModelConfig.TOKEN_DIM)
         """
         batch_size = len(ships_batch)
-        tokens_batch = torch.zeros(batch_size, self.max_ships, 13)
+        tokens_batch = torch.zeros(batch_size, self.max_ships, ModelConfig.TOKEN_DIM)
         ship_ids_batch = torch.zeros(batch_size, self.max_ships, dtype=torch.long)
         
         for i, ships in enumerate(ships_batch):
@@ -402,8 +409,8 @@ class BatchTokenEncoder:
             actions_history_batch: Optional actions histories
             
         Returns:
-            tokens: [batch_size, seq_len, 12] Temporal token sequences
-            ship_ids: [batch_size, seq_len] Ship IDs for each token
+            tokens: [batch_size, seq_len, {}] Temporal token sequences
+            ship_ids: [batch_size, seq_len] Ship IDs for each token".format(ModelConfig.TOKEN_DIM)
         """
         return self.base_encoder.create_batch_sequences(
             ships_history_batch, actions_history_batch, self.sequence_length

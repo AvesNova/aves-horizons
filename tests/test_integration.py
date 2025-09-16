@@ -15,6 +15,7 @@ from models.ship_transformer import ShipTransformerMVP
 from models.state_history import StateHistory
 from models.token_encoder import ShipTokenEncoder
 from core.ships import Ships
+from utils.config import ModelConfig
 
 
 class TestIntegration:
@@ -40,11 +41,11 @@ class TestIntegration:
         # Encode ships to tokens
         tokens = encoder.encode_ships_to_tokens(ships, timestep_offset=0.0)
         
-        assert tokens.shape == (4, 13)
+        assert tokens.shape == (4, ModelConfig.TOKEN_DIM)
         
         # Check that positions are normalized correctly
-        assert torch.allclose(tokens[:, 0], torch.tensor(0.5))  # pos_x
-        assert torch.allclose(tokens[:, 1], torch.tensor(0.5))  # pos_y
+        assert torch.allclose(tokens[:, ModelConfig.TOKEN_FEATURES['pos_x']], torch.tensor(0.5))  # pos_x
+        assert torch.allclose(tokens[:, ModelConfig.TOKEN_FEATURES['pos_y']], torch.tensor(0.5))  # pos_y
         
     def test_full_temporal_sequence_pipeline(self):
         """Test the complete temporal sequence pipeline."""
@@ -78,12 +79,12 @@ class TestIntegration:
         # Generate token sequence
         tokens, ship_ids = history.get_token_sequence()
         
-        assert tokens.shape == (12, 13)  # 3 timesteps * 4 ships = 12 tokens, 13 dims each
+        assert tokens.shape == (12, ModelConfig.TOKEN_DIM)  # 3 timesteps * 4 ships tokens
         assert ship_ids.shape == (12,)
         
         # Add batch dimension for model
-        tokens_batch = tokens.unsqueeze(0)  # [1, 12, 13]
-        ship_ids_batch = ship_ids.unsqueeze(0)  # [1, 12]
+        tokens_batch = tokens.unsqueeze(0)  # [1, 12, {}]
+        ship_ids_batch = ship_ids.unsqueeze(0)  # [1, 12]".format(ModelConfig.TOKEN_DIM)
         
         # Forward through model
         with torch.no_grad():

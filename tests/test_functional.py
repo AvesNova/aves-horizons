@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from models.ship_transformer import ShipTransformerMVP
 from models.state_history import StateHistory
 from core.ships import Ships
+from utils.config import ModelConfig
 
 
 class TestFunctional:
@@ -78,7 +79,7 @@ class TestFunctional:
         model = ShipTransformerMVP(d_model=16, nhead=2, num_layers=1)
         
         # Create dummy input
-        tokens = torch.randn(1, 12, 12)  # 1 batch, 12 tokens, 12 features
+        tokens = torch.randn(1, 12, ModelConfig.TOKEN_DIM)  # 1 batch, 12 tokens, TOKEN_DIM features
         ship_ids = torch.arange(12) % 4  # 4 ships
         ship_ids = ship_ids.unsqueeze(0)
         
@@ -116,7 +117,7 @@ class TestFunctional:
         target_pattern[0, :, 0] = 1.0  # Forward action for all ships
         
         # Training data: random tokens (shouldn't matter for this simple task)
-        tokens = torch.randn(1, 48, 12)
+        tokens = torch.randn(1, 48, ModelConfig.TOKEN_DIM)
         ship_ids = torch.arange(48) % 8
         ship_ids = ship_ids.unsqueeze(0)
         

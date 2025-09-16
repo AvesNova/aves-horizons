@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from models.state_history import StateHistory
 from core.ships import Ships
+from utils.config import ModelConfig
 
 
 class TestStateHistory:
@@ -103,7 +104,7 @@ class TestStateHistory:
         
         # Should have sequence_length * max_ships tokens
         expected_seq_len = 3 * 2
-        assert tokens.shape == (expected_seq_len, 12)
+        assert tokens.shape == (expected_seq_len, ModelConfig.TOKEN_DIM)
         assert ship_ids.shape == (expected_seq_len,)
         
         # Check time-major organization
@@ -112,7 +113,7 @@ class TestStateHistory:
         
         # Check timestep offsets
         expected_offsets = [-2, -2, -1, -1, 0, 0]
-        timestep_offsets = tokens[:, -1]  # Last column is timestep_offset
+        timestep_offsets = tokens[:, ModelConfig.TOKEN_FEATURES['timestep_offset']]  # timestep_offset column
         assert torch.allclose(timestep_offsets, torch.tensor(expected_offsets, dtype=torch.float32))
         
     def test_active_ships_tracking(self):

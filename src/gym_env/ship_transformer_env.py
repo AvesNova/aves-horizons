@@ -12,7 +12,7 @@ from gymnasium import spaces
 from typing import Any, Dict, List, Tuple, Optional, Union
 
 from core.environment import Environment
-from utils.config import Actions
+from utils.config import Actions, ModelConfig
 from models.state_history import StateHistory
 from models.token_encoder import ShipTokenEncoder
 
@@ -42,11 +42,11 @@ class ShipTransformerEnv(gym.Env):
     def __init__(
         self,
         render_mode: Optional[str] = None,
-        n_ships: int = 8,
-        n_obstacles: int = 0,
-        controlled_team_size: int = 4,
-        sequence_length: int = 6,
-        world_size: Tuple[float, float] = (1200.0, 800.0),
+        n_ships: int = ModelConfig.DEFAULT_N_SHIPS,
+        n_obstacles: int = ModelConfig.DEFAULT_N_OBSTACLES,
+        controlled_team_size: int = ModelConfig.DEFAULT_CONTROLLED_TEAM_SIZE,
+        sequence_length: int = ModelConfig.DEFAULT_SEQUENCE_LENGTH,
+        world_size: Tuple[float, float] = ModelConfig.DEFAULT_WORLD_SIZE,
         normalize_coordinates: bool = True,
         opponent_policy: str = "random",  # "random", "heuristic", "model"
         team_assignment: str = "alternating"  # "alternating", "first_half", "custom"
@@ -88,7 +88,7 @@ class ShipTransformerEnv(gym.Env):
         
         # Define observation space: temporal token sequences
         # Format: [sequence_length * n_ships, token_dim]
-        token_dim = self.token_encoder.get_token_dim()  # 12
+        token_dim = ModelConfig.TOKEN_DIM
         sequence_tokens = sequence_length * n_ships
         obs_low = np.full(sequence_tokens * token_dim, -np.inf, dtype=np.float32)
         obs_high = np.full(sequence_tokens * token_dim, np.inf, dtype=np.float32)
@@ -96,7 +96,7 @@ class ShipTransformerEnv(gym.Env):
         
         # Track episode state
         self.episode_steps = 0
-        self.max_episode_steps = 2000
+        self.max_episode_steps = ModelConfig.DEFAULT_MAX_EPISODE_STEPS
         
     def _assign_teams(self) -> Tuple[List[int], List[int]]:
         """Assign ships to controlled and opponent teams."""
@@ -119,7 +119,7 @@ class ShipTransformerEnv(gym.Env):
         """Get transformer-compatible observation from state history."""
         if not self.state_history.is_ready():
             # If not enough history, return zeros
-            token_dim = self.token_encoder.get_token_dim()
+            token_dim = ModelConfig.TOKEN_DIM
             sequence_tokens = self.sequence_length * self.n_ships
             return np.zeros(sequence_tokens * token_dim, dtype=np.float32)
         
@@ -366,8 +366,8 @@ class ShipTransformerEnv(gym.Env):
         Get current token sequence for direct transformer input.
         
         Returns:
-            tokens: [seq_len, 12] Token sequence
-            ship_ids: [seq_len] Ship IDs
+            tokens: [seq_len, {}] Token sequence
+            ship_ids: [seq_len] Ship IDs".format(ModelConfig.TOKEN_DIM)
         """
         return self.state_history.get_token_sequence()
     

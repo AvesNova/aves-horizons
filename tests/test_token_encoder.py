@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from models.token_encoder import ShipTokenEncoder
 from core.ships import Ships
+from utils.config import ModelConfig
 
 
 class TestShipTokenEncoder:
@@ -50,14 +51,14 @@ class TestShipTokenEncoder:
         tokens = encoder.encode_ships_to_tokens(ships, timestep_offset=-1.0)
         
         # Check token shape and basic properties
-        assert tokens.shape == (4, 12), f"Expected (4, 12), got {tokens.shape}"
+        assert tokens.shape == (4, ModelConfig.TOKEN_DIM), f"Expected (4, {ModelConfig.TOKEN_DIM}), got {tokens.shape}"
         
         # Check that timestep offset is correctly encoded
-        assert torch.allclose(tokens[:, -1], torch.full((4,), -1.0))
+        assert torch.allclose(tokens[:, ModelConfig.TOKEN_FEATURES['timestep_offset']], torch.full((4,), -1.0))
         
         # Check normalized positions (should be 0.5, 0.5 for center)
-        assert torch.allclose(tokens[:, 0], torch.full((4,), 0.5), atol=1e-6)  # pos_x
-        assert torch.allclose(tokens[:, 1], torch.full((4,), 0.5), atol=1e-6)  # pos_y
+        assert torch.allclose(tokens[:, ModelConfig.TOKEN_FEATURES['pos_x']], torch.full((4,), 0.5), atol=1e-6)  # pos_x
+        assert torch.allclose(tokens[:, ModelConfig.TOKEN_FEATURES['pos_y']], torch.full((4,), 0.5), atol=1e-6)  # pos_y
         
     def test_encode_with_actions(self):
         """Test encoding with action information."""
@@ -70,9 +71,9 @@ class TestShipTokenEncoder:
         
         tokens = encoder.encode_ships_to_tokens(ships, actions=actions)
         
-        # Check shooting state is encoded correctly
-        assert tokens[0, -2] == 1.0  # Ship 0 is shooting
-        assert tokens[1, -2] == 0.0  # Ship 1 is not shooting
+        # Check shooting state is encoded correctly (is_shooting is at index 10)
+        assert tokens[0, ModelConfig.TOKEN_FEATURES['is_shooting']] == 1.0  # Ship 0 is shooting
+        assert tokens[1, ModelConfig.TOKEN_FEATURES['is_shooting']] == 0.0  # Ship 1 is not shooting
         
     def test_coordinate_normalization(self):
         """Test coordinate normalization."""
@@ -91,8 +92,8 @@ class TestShipTokenEncoder:
         tokens_norm = encoder_norm.encode_ships_to_tokens(ships)
         
         # Should be normalized to 0.5, 0.5
-        assert torch.allclose(tokens_norm[0, 0], torch.tensor(0.5), atol=1e-6)
-        assert torch.allclose(tokens_norm[0, 1], torch.tensor(0.5), atol=1e-6)
+        assert torch.allclose(tokens_norm[0, ModelConfig.TOKEN_FEATURES['pos_x']], torch.tensor(0.5), atol=1e-6)
+        assert torch.allclose(tokens_norm[0, ModelConfig.TOKEN_FEATURES['pos_y']], torch.tensor(0.5), atol=1e-6)
         
         # Test without normalization
         encoder_no_norm = ShipTokenEncoder(
@@ -103,13 +104,13 @@ class TestShipTokenEncoder:
         tokens_no_norm = encoder_no_norm.encode_ships_to_tokens(ships)
         
         # Should be raw coordinates
-        assert torch.allclose(tokens_no_norm[0, 0], torch.tensor(500.0), atol=1e-6)
-        assert torch.allclose(tokens_no_norm[0, 1], torch.tensor(250.0), atol=1e-6)
+        assert torch.allclose(tokens_no_norm[0, ModelConfig.TOKEN_FEATURES['pos_x']], torch.tensor(500.0), atol=1e-6)
+        assert torch.allclose(tokens_no_norm[0, ModelConfig.TOKEN_FEATURES['pos_y']], torch.tensor(250.0), atol=1e-6)
         
     def test_token_dimensions(self):
         """Test that tokens have correct dimensions."""
         encoder = ShipTokenEncoder()
-        assert encoder.get_token_dim() == 12
+        assert encoder.get_token_dim() == ModelConfig.TOKEN_DIM
         
     def test_temporal_sequence_creation(self):
         """Test creating temporal sequences from ship history."""
@@ -131,7 +132,7 @@ class TestShipTokenEncoder:
         )
         
         # Should have 3 timesteps * 2 ships = 6 tokens
-        assert tokens.shape == (6, 12)
+        assert tokens.shape == (6, ModelConfig.TOKEN_DIM)
         assert ship_ids.shape == (6,)
         
         # Check ship ID pattern (time-major order)
@@ -140,5 +141,5 @@ class TestShipTokenEncoder:
         
         # Check timestep offsets
         expected_offsets = [-2, -2, -1, -1, 0, 0]  # Timestep offsets
-        timestep_offsets = tokens[:, -1]
+        timestep_offsets = tokens[:, ModelConfig.TOKEN_FEATURES['timestep_offset']]
         assert torch.allclose(timestep_offsets, torch.tensor(expected_offsets, dtype=torch.float32))
