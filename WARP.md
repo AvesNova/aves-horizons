@@ -69,9 +69,6 @@ pytest
 
 # Run tests with verbose output
 pytest -v
-
-# Run specific test patterns
-pytest -k "collision"
 ```
 
 ### Game Controls
@@ -82,11 +79,8 @@ pytest -k "collision"
 
 ### Physics Integration
 - Uses adaptive ODE integration for stability at variable framerates
-- Physics runs at `physics_dt = 0.02s` (50 FPS) with agent decisions at `agent_dt = 0.1s` (10 FPS)
+- Physics runs at `physics_dt = 0.02s` (50 FPS) with agent decisions at `agent_dt = 0.04s` (25 FPS)
 - Turn offset system allows ships to face different directions than velocity (aerodynamic turning)
-
-### Collision System
-The system implements **continuous collision detection** by default to prevent fast projectiles from "phasing through" ships at low framerates. This uses swept collision detection (ray-casting) along the bullet's movement path.
 
 ### Action Space Architecture
 Actions use MultiBinary(6) encoding where simultaneous button presses create emergent behaviors:
@@ -114,6 +108,7 @@ This codebase is designed to support a novel transformer-based multi-agent AI sy
 
 ### Code Style
 - Use type hints throughout (established pattern in existing code)
+- Use modern type hints such as `dict` and `None` instead of `Dict` and `Optional`
 - Dataclasses for configuration objects (`ShipConfig`)
 - Complex numbers for 2D vectors (position, velocity, attitude)
 - Lookup tables for performance-critical calculations
@@ -140,9 +135,6 @@ Default ship parameters are defined in `ShipConfig` class:
 - **Energy Costs**: Forward costly, backward regenerative
 
 ## Key Research Features
-
-### Continuous Collision Detection
-Documented in `docs/COLLISION_DETECTION.md`. Essential for consistent physics at variable framerates, particularly important for AI training consistency.
 
 ### Multi-Agent Coordination  
 The architecture supports emergent team coordination through shared model training rather than explicit communication protocols.

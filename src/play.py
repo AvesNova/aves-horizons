@@ -17,8 +17,6 @@ from enums import Actions
 
 
 class DummyAgent:
-    """Simple random agent for testing"""
-
     def __init__(self, ship_id: int, action_prob: float = 0.3, seed: int = None):
         self.ship_id = ship_id
         self.action_prob = action_prob
@@ -78,7 +76,7 @@ def main():
         world_size=(1200, 800),
         memory_size=1,
         n_ships=2,
-        agent_dt=0.02,
+        agent_dt=0.04,
         physics_dt=0.02,
     )
 
