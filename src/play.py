@@ -1,35 +1,26 @@
 #!/usr/bin/env python3
 """
-Human vs Random Agent Game Entry Point
+Human vs Scripted Agent Game Entry Point
 
 Controls for Human Player (Ship 0):
 - Arrow Keys or WASD: Movement
 - Shift: Sharp turn mode
 - Space: Shoot
 
-The random agent ( Ship 1) will move and shoot randomly.
+The scripted agent (Ship 1) will intelligently target and shoot at the human player.
 """
 
 import torch
 import numpy as np
 from env import Environment
 from enums import Actions
-
-
-class DummyAgent:
-    def __init__(self, ship_id: int, action_prob: float = 0.3, seed: int = None):
-        self.ship_id = ship_id
-        self.action_prob = action_prob
-        self.rng = np.random.default_rng(seed)
-
-    def get_action(self, observation=None) -> torch.Tensor:
-        return torch.zeros(len(Actions))
+from scripted_agent import ScriptedAgent
 
 
 def print_game_info():
     """Print game instructions"""
     print("=" * 60)
-    print("SPACE COMBAT - Human vs Random Agent")
+    print("SPACE COMBAT - Human vs Scripted Agent")
     print("=" * 60)
     print("Controls for Human Player (Blue Ship):")
     print("  Arrow Keys or WASD: Move")
@@ -80,8 +71,8 @@ def main():
         physics_dt=0.02,
     )
 
-    # Create random agent for ship 1
-    random_agent = DummyAgent(ship_id=1, action_prob=0.4, seed=42)
+    # Create scripted agent for ship 1
+    scripted_agent = ScriptedAgent(max_shooting_range=500.0, angle_threshold=3.0)
 
     try:
         # Reset environment
@@ -99,8 +90,19 @@ def main():
             # Get actions
             actions = {}
 
-            # Random agent action for ship 1
-            actions[1] = random_agent.get_action(observation)
+            # Scripted agent action for ship 1
+            if 1 in observation and observation[1]["self_state"][4] > 0:  # If ship_1 is alive
+                # Convert numpy arrays to tensors for the agent
+                obs_tensors = {
+                    "self_state": torch.from_numpy(observation[1]["self_state"]),
+                    "enemy_state": torch.from_numpy(observation[1]["enemy_state"]),
+                    "bullets": torch.from_numpy(observation[1]["bullets"]),
+                    "world_bounds": torch.from_numpy(observation[1]["world_bounds"]),
+                    "time": observation[1]["time"],
+                }
+                actions[1] = scripted_agent(obs_tensors)
+            else:
+                actions[1] = torch.zeros(len(Actions), dtype=torch.float32)
 
             # Human controls ship 0 (handled by renderer)
             actions[0] = torch.zeros(
