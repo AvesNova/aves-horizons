@@ -18,9 +18,9 @@ class ShipConfig:
     base_thrust: float = 10.0
     boost_thrust: float = 80.0
     reverse_thrust: float = -10.0
-    base_energy_cost: float = -10.0
-    boost_energy_cost: float = 40.0
-    reverse_energy_cost: float = -20.0
+    base_power_gain: float = 10.0
+    boost_power_gain: float = -40.0
+    reverse_power_gain: float = 20.0
 
     # Aerodynamic Parameters
     no_turn_drag_coeff: float = 8e-4
@@ -109,10 +109,10 @@ class Ship(nn.Module):
 
         # Indexed by [forward, backward] -> energy cost
         self.energy_cost_table = np.zeros((2, 2), dtype=np.float32)
-        self.energy_cost_table[0, 0] = ship_config.base_energy_cost  # Neither
-        self.energy_cost_table[1, 0] = ship_config.boost_energy_cost  # Forward only
-        self.energy_cost_table[0, 1] = ship_config.reverse_energy_cost  # Backward only
-        self.energy_cost_table[1, 1] = ship_config.base_energy_cost  # Both -> base
+        self.energy_cost_table[0, 0] = ship_config.base_power_gain  # Neither
+        self.energy_cost_table[1, 0] = ship_config.boost_power_gain  # Forward only
+        self.energy_cost_table[0, 1] = ship_config.reverse_power_gain  # Backward only
+        self.energy_cost_table[1, 1] = ship_config.base_power_gain  # Both -> base
 
         # Indexed by [turning, sharp] -> drag coefficient
         self.drag_coeff_table = np.zeros((2, 2), dtype=np.float32)

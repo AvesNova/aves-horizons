@@ -64,7 +64,7 @@ class GameRenderer:
 
         if not self.initialized:
             self.initialize()
-
+            
         keys = pygame.key.get_pressed()
 
         for ship_id in self.human_ship_ids:

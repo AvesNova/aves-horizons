@@ -16,7 +16,7 @@ from env import Environment
 from enums import Actions
 
 
-class RandomAgent:
+class DummyAgent:
     """Simple random agent for testing"""
 
     def __init__(self, ship_id: int, action_prob: float = 0.3, seed: int = None):
@@ -25,25 +25,7 @@ class RandomAgent:
         self.rng = np.random.default_rng(seed)
 
     def get_action(self, observation=None) -> torch.Tensor:
-        """Generate random actions"""
-        # Random binary actions with given probability
-        action = torch.zeros(len(Actions))
-
-        # Movement actions
-        if self.rng.random() < self.action_prob:
-            action[Actions.forward] = 1
-        if self.rng.random() < self.action_prob * 0.3:  # Less likely to go backward
-            action[Actions.backward] = 1
-        if self.rng.random() < self.action_prob:
-            action[Actions.left] = 1
-        if self.rng.random() < self.action_prob:
-            action[Actions.right] = 1
-        if self.rng.random() < self.action_prob * 0.2:  # Sharp turns are rarer
-            action[Actions.sharp_turn] = 1
-        if self.rng.random() < self.action_prob * 0.8:  # Aggressive shooting
-            action[Actions.shoot] = 1
-
-        return action
+        return torch.zeros(len(Actions))
 
 
 def print_game_info():
@@ -101,7 +83,7 @@ def main():
     )
 
     # Create random agent for ship 1
-    random_agent = RandomAgent(ship_id=1, action_prob=0.4, seed=42)
+    random_agent = DummyAgent(ship_id=1, action_prob=0.4, seed=42)
 
     try:
         # Reset environment
