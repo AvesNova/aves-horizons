@@ -318,3 +318,86 @@ class TestRewardsAndTermination:
         assert terminated is True
         assert info["individual_done"][0] is True
         assert info["individual_done"][1] is True
+
+
+class TestInfoDict:
+    """Tests for info dictionary content."""
+
+    def test_info_structure(self, basic_env):
+        """Test that info dict contains expected keys."""
+        basic_env.reset(game_mode="1v1")
+
+        actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+        obs, rewards, terminated, truncated, info = basic_env.step(actions)
+
+        expected_keys = {
+            "current_time",
+            "active_bullets",
+            "ship_states",
+            "individual_done",
+        }
+
+        assert expected_keys.issubset(info.keys())
+
+    def test_info_current_time(self, basic_env, step_environment):
+        """Test that current_time tracks correctly."""
+        basic_env.reset(game_mode="1v1")
+
+        actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+
+        for i in range(5):
+            obs, rewards, terminated, truncated, info = basic_env.step(actions)
+            expected_time = (i + 1) * basic_env.agent_dt
+            assert abs(info["current_time"] - expected_time) < 1e-6
+
+    def test_info_active_bullets(self, basic_env):
+        """Test that active_bullets count is accurate."""
+        basic_env.reset(game_mode="1v1")
+
+        # Add some bullets manually
+        snapshot = basic_env.state[-1]
+        for i in range(3):
+            snapshot.bullets.add_bullet(0, i * 100, i * 100, 0, 0, 1.0)
+
+        actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+        obs, rewards, terminated, truncated, info = basic_env.step(actions)
+
+        assert info["active_bullets"] == 3
+
+    def test_info_ship_states(self, basic_env):
+        """Test that ship states are included."""
+        basic_env.reset(game_mode="1v1")
+
+        actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+        obs, rewards, terminated, truncated, info = basic_env.step(actions)
+
+        ship_states = info["ship_states"]
+        assert 0 in ship_states
+        assert 1 in ship_states
+
+        # Check state structure
+        for ship_id, state in ship_states.items():
+            assert "ship_id" in state
+            assert "team_id" in state
+            assert "alive" in state
+            assert "health" in state
+            assert "power" in state
+            assert "position" in state
+            assert "velocity" in state
+            assert "speed" in state
+            assert "attitude" in state
+            assert "is_shooting" in state
+
+    def test_info_individual_done(self, basic_env):
+        """Test individual done flags."""
+        basic_env.reset(game_mode="1v1")
+
+        # Kill ship 0
+        basic_env.state[-1].ships[0].health = 0
+        basic_env.state[-1].ships[0].alive = False
+
+        actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+        obs, rewards, terminated, truncated, info = basic_env.step(actions)
+
+        assert info["individual_done"][0] is True
+        assert info["individual_done"][1] is False
