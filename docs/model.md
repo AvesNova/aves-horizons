@@ -37,6 +37,7 @@ Each token represents one ship's state at one timestep:
 
 ```python
 base_token = [
+    team,            # 1 if on the same team
     pos_x,           # World X coordinate
     pos_y,           # World Y coordinate  
     vel_x,           # Velocity X component
@@ -50,7 +51,7 @@ base_token = [
     is_shooting,     # Binary shooting state
     timestep_offset  # Temporal position in sequence
 ]
-# Total: 12 dimensions
+# Total: 13 dimensions
 ```
 
 ### Encoding Strategy
