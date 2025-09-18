@@ -233,36 +233,52 @@ class TestWorldWrapping:
 
         # Move ship 0 past right boundary
         ship0 = basic_env.state[-1].ships[0]
+        initial_velocity = ship0.velocity
         ship0.position = basic_env.world_size[0] + 50.0 + 300.0j
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         basic_env.step(actions)
 
-        # Position should wrap
+        # Position should wrap, accounting for movement during physics step
         wrapped_ship = basic_env.state[-1].ships[0]
-        assert wrapped_ship.position.real == 50.0
-        assert wrapped_ship.position.imag == 300.0
+        # Expected position: (initial + velocity*dt) % world_size
+        expected_real = (basic_env.world_size[0] + 50.0 + initial_velocity.real * basic_env.agent_dt) % basic_env.world_size[0]
+        assert abs(wrapped_ship.position.real - expected_real) < 1.0
+        assert abs(wrapped_ship.position.imag - 300.0) < 1.0
 
     def test_ship_wrapping_all_boundaries(self, basic_env):
         """Test wrapping on all four boundaries."""
         basic_env.reset(game_mode="1v1")
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
+        ship = basic_env.state[-1].ships[0]
+        velocity = ship.velocity
+        dt = basic_env.agent_dt
 
         test_cases = [
-            # (initial_position, expected_wrapped)
-            (-50.0 + 300.0j, (basic_env.world_size[0] - 50.0) + 300.0j),  # Left
-            (850.0 + 300.0j, 50.0 + 300.0j),  # Right
-            (400.0 - 50.0j, 400.0 + (basic_env.world_size[1] - 50.0) * 1j),  # Top
-            (400.0 + 650.0j, 400.0 + 50.0j),  # Bottom
+            # (initial_position, description)
+            (-50.0 + 300.0j, "Left"),
+            (basic_env.world_size[0] + 50.0 + 300.0j, "Right"),
+            (400.0 - 50.0j, "Top"),
+            (400.0 + basic_env.world_size[1] + 50.0j, "Bottom"),
         ]
 
-        for initial, expected in test_cases:
-            basic_env.state[-1].ships[0].position = initial
+        for initial, description in test_cases:
+            # Reset environment to get clean state for each test case
+            basic_env.reset(game_mode="1v1")
+            ship = basic_env.state[-1].ships[0]
+            velocity = ship.velocity  # Get fresh velocity after reset
+            
+            ship.position = initial
             basic_env.step(actions)
 
+            # Calculate expected position after movement and wrapping
+            moved_pos = initial + velocity * dt
+            expected_real = moved_pos.real % basic_env.world_size[0]
+            expected_imag = moved_pos.imag % basic_env.world_size[1]
+            
             wrapped = basic_env.state[-1].ships[0].position
-            assert abs(wrapped.real - expected.real) < 1.0
-            assert abs(wrapped.imag - expected.imag) < 1.0
+            assert abs(wrapped.real - expected_real) < 1.0, f"{description} boundary wrapping failed"
+            assert abs(wrapped.imag - expected_imag) < 1.0, f"{description} boundary wrapping failed"
 
     def test_bullet_position_wrapping(self, basic_env):
         """Test that bullet positions wrap at boundaries."""

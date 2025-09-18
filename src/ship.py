@@ -76,7 +76,9 @@ class Ship(nn.Module):
         self.health = ship_config.max_health
         self.power = ship_config.max_power
         self.turn_offset = 0.0
-        self.last_fired_time = 0.0
+        self.last_fired_time = (
+            -ship_config.firing_cooldown
+        )  # Allow immediate first shot
         self.is_shooting = False  # Initialize shooting state
 
         self.position = initial_x + 1j * initial_y

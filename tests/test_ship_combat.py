@@ -75,10 +75,12 @@ class TestShooting:
         action = torch.zeros(len(Actions))
         action[Actions.shoot] = 1
 
+        # Capture ship position before shooting (since bullet is created before kinematics update)
+        initial_position = basic_ship.position
         basic_ship.forward(action, empty_bullets, current_time=1.0, delta_t=0.01)
 
-        assert abs(empty_bullets.x[0] - basic_ship.position.real) < 1e-5
-        assert abs(empty_bullets.y[0] - basic_ship.position.imag) < 1e-5
+        assert abs(empty_bullets.x[0] - initial_position.real) < 1e-5
+        assert abs(empty_bullets.y[0] - initial_position.imag) < 1e-5
 
     def test_bullet_velocity_includes_ship_velocity(self, basic_ship, empty_bullets):
         """Test that bullet velocity includes ship velocity."""
@@ -88,17 +90,21 @@ class TestShooting:
         # Set ship velocity
         basic_ship.velocity = 50.0 + 25.0j
         basic_ship.speed = abs(basic_ship.velocity)
+        
+        # Capture velocity and attitude before shooting (since bullet is created before kinematics update)
+        initial_velocity = basic_ship.velocity
+        initial_attitude = basic_ship.attitude
 
         basic_ship.forward(action, empty_bullets, current_time=1.0, delta_t=0.01)
 
         # Bullet velocity should be ship velocity plus bullet speed in attitude direction
         expected_vx = (
-            basic_ship.velocity.real
-            + basic_ship.config.bullet_speed * basic_ship.attitude.real
+            initial_velocity.real
+            + basic_ship.config.bullet_speed * initial_attitude.real
         )
         expected_vy = (
-            basic_ship.velocity.imag
-            + basic_ship.config.bullet_speed * basic_ship.attitude.imag
+            initial_velocity.imag
+            + basic_ship.config.bullet_speed * initial_attitude.imag
         )
 
         # Account for spread randomness
@@ -206,8 +212,11 @@ class TestCombatIntegration:
 
     def test_energy_management_combat(self, basic_ship, empty_bullets):
         """Test energy management during combat."""
-        # Deplete most energy
-        basic_ship.power = basic_ship.config.bullet_energy_cost * 2
+        # Set power to barely enough for one shot (accounting for base power gain)
+        # bullet_energy_cost = 3.0, base_power_gain = 10.0, dt = 0.01
+        # After shooting: power - bullet_cost + base_gain * dt = power - 3.0 + 0.1
+        # To have insufficient energy for second shot: power - 2.9 < 3.0 -> power < 5.9
+        basic_ship.power = 5.8
 
         shoot_action = torch.zeros(len(Actions))
         shoot_action[Actions.shoot] = 1
