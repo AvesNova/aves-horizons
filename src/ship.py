@@ -121,10 +121,16 @@ class Ship(nn.Module):
         self.drag_coeff_table[1, 0] = ship_config.normal_turn_drag_coeff  # Normal turn
         self.drag_coeff_table[1, 1] = ship_config.sharp_turn_drag_coeff  # Sharp turn
 
-        # Indexed by [sharp] -> lift coefficient
-        self.lift_coeff_table = np.zeros(2, dtype=np.float32)
-        self.lift_coeff_table[0] = ship_config.normal_turn_lift_coeff  # 0: Normal turn
-        self.lift_coeff_table[1] = ship_config.sharp_turn_lift_coeff  # 1: Sharp turn
+        # Indexed by [left, right, sharp] -> lift coefficient
+        self.lift_coeff_table = np.zeros((2, 2, 2), dtype=np.float32)
+        self.lift_coeff_table[0, 0, 0] = 0.0  # None
+        self.lift_coeff_table[0, 0, 1] = 0.0  # S
+        self.lift_coeff_table[0, 1, 0] = self.config.normal_turn_lift_coeff  # R
+        self.lift_coeff_table[0, 1, 1] = self.config.sharp_turn_lift_coeff  # SR
+        self.lift_coeff_table[1, 0, 0] = -self.config.normal_turn_lift_coeff  # L
+        self.lift_coeff_table[1, 0, 1] = -self.config.sharp_turn_lift_coeff  # SL
+        self.lift_coeff_table[1, 1, 0] = 0.0  # LR
+        self.lift_coeff_table[1, 1, 1] = 0.0  # SLR
 
     def _extract_action_states(self, actions: torch.Tensor) -> ActionStates:
         return ActionStates(
@@ -159,7 +165,9 @@ class Ship(nn.Module):
         drag_coeff = self.drag_coeff_table[turning, actions.sharp_turn]
         drag_force = -drag_coeff * self.speed * self.velocity
 
-        lift_coeff = self.lift_coeff_table[actions.sharp_turn]
+        lift_coeff = self.lift_coeff_table[
+            actions.left, actions.right, actions.sharp_turn
+        ]
         lift_vector = self.velocity * 1j  # 90 degrees counter-clockwise
         lift_force = lift_coeff * self.speed * lift_vector
 
@@ -231,6 +239,7 @@ class Ship(nn.Module):
         self._shoot_bullet(actions, bullets, current_time)
         self._update_attitude(actions)
         self._update_kinematics(actions, delta_t)
+        self._update_attitude(actions)
         self._update_power(actions, delta_t)
 
     def damage_ship(self, damage: float) -> None:

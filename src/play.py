@@ -76,10 +76,10 @@ def main():
     env = Environment(
         render_mode="human",
         world_size=(1200, 800),
-        memory_size=5,  # Keep some history as you requested
+        memory_size=1,
         n_ships=2,
-        agent_dt=0.1,  # Agent decisions every 0.1s
-        physics_dt=0.02,  # Physics at 50 FPS
+        agent_dt=0.02,
+        physics_dt=0.02,
     )
 
     # Create random agent for ship 1

@@ -19,7 +19,7 @@ class Environment(gym.Env):
         world_size: tuple[int, int] = (1200, 800),
         memory_size: int = 1,
         n_ships: int = 2,
-        agent_dt: float = 0.1,
+        agent_dt: float = 0.02,
         physics_dt: float = 0.02,
     ):
         super().__init__()
@@ -68,8 +68,8 @@ class Environment(gym.Env):
             ship_id=0,
             team_id=0,
             ship_config=default_ship_config,
-            initial_x=self.world_size[0] / 4,
-            initial_y=self.world_size[1] / 2,
+            initial_x=0.25 * self.world_size[0],
+            initial_y=0.40 * self.world_size[1],
             initial_vx=100.0,
             initial_vy=0.0,
         )
@@ -78,8 +78,8 @@ class Environment(gym.Env):
             ship_id=1,
             team_id=1,
             ship_config=default_ship_config,
-            initial_x=3 * self.world_size[0] / 4,
-            initial_y=self.world_size[1] / 2,
+            initial_x=0.75 * self.world_size[0],
+            initial_y=0.60 * self.world_size[1],
             initial_vx=-100.0,
             initial_vy=0.0,
         )
