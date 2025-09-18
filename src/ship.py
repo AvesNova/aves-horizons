@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from globals import Actions
+from enums import Actions
 from bullets import Bullets
 
 

@@ -22,7 +22,6 @@ class Bullets:
     def add_bullet(
         self, ship_id: int, x: float, y: float, vx: float, vy: float, lifetime: float
     ) -> int:
-        """O(1) addition - just grab next free slot and swap to active region"""
         if self.num_free == 0:
             return -1
 
@@ -62,7 +61,6 @@ class Bullets:
         self.ship_id[i], self.ship_id[j] = self.ship_id[j], self.ship_id[i]
 
     def remove_bullet(self, idx: int) -> None:
-        """O(1) removal by swap with last active"""
         if idx >= self.num_active:
             return  # Already inactive
 
@@ -77,7 +75,6 @@ class Bullets:
         self.num_free += 1
 
     def update_all(self, dt: float) -> None:
-        """Ultra-fast vectorized update - only active bullets"""
         if self.num_active == 0:
             return
 
@@ -90,7 +87,6 @@ class Bullets:
         self._remove_expired()
 
     def _remove_expired(self) -> None:
-        """Batch remove expired bullets"""
         if self.num_active == 0:
             return
 
@@ -129,7 +125,6 @@ class Bullets:
         self.num_active = new_active_count
 
     def get_active_positions(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Get positions and ship_ids for collision detection"""
         if self.num_active == 0:
             return np.array([]), np.array([]), np.array([])
 
