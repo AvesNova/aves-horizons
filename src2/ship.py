@@ -45,12 +45,12 @@ default_ship_config = ShipConfig()
 
 @dataclass
 class ActionStates:
-    forward: bool
-    backward: bool
-    left: bool
-    right: bool
-    sharp_turn: bool
-    shoot: bool
+    forward: int
+    backward: int
+    left: int
+    right: int
+    sharp_turn: int
+    shoot: int
 
 
 class Ship(nn.Module):
@@ -65,6 +65,7 @@ class Ship(nn.Module):
         initial_vy: float,
         rng: np.random.Generator = np.random.default_rng(),
     ):
+        super().__init__()
         self.ship_id = ship_id
         self.team_id = team_id
         self.config = ship_config
@@ -76,10 +77,11 @@ class Ship(nn.Module):
         self.power = ship_config.max_power
         self.turn_offset = 0.0
         self.last_fired_time = 0.0
+        self.is_shooting = False  # Initialize shooting state
 
         self.position = initial_x + 1j * initial_y
         self.velocity = initial_vx + 1j * initial_vy
-        self.speed = np.linalg.norm(self.velocity)
+        self.speed = abs(self.velocity)
         assert self.speed > 1e-6, "Initial velocity cannot be too small"
         self.attitude = self.velocity / self.speed
 
@@ -87,7 +89,7 @@ class Ship(nn.Module):
 
     def _build_lookup_tables(self, ship_config: ShipConfig) -> None:
         # Indexed by [left, right, sharp] -> turn offset
-        self.turn_offset_table = np.zeros(2, 2, 2, dtype=np.float32)
+        self.turn_offset_table = np.zeros((2, 2, 2), dtype=np.float32)
 
         self.turn_offset_table[0, 0, 0] = 0  # None
         self.turn_offset_table[0, 1, 0] = ship_config.normal_turn_angle  # R
@@ -99,21 +101,21 @@ class Ship(nn.Module):
         self.turn_offset_table[1, 1, 1] = 0  # SLR
 
         # Indexed by [forward, backward] -> thrust
-        self.thrust_table = np.zeros(2, 2, dtype=np.float32)
+        self.thrust_table = np.zeros((2, 2), dtype=np.float32)
         self.thrust_table[0, 0] = ship_config.base_thrust  # Neither
-        self.thrust_table[0, 1] = ship_config.boost_thrust  # Boost only
-        self.thrust_table[1, 0] = ship_config.reverse_thrust  # Forward only
-        self.thrust_table[1, 1] = 1.0  # Both -> cancel out to base
+        self.thrust_table[1, 0] = ship_config.boost_thrust  # Forward only
+        self.thrust_table[0, 1] = ship_config.reverse_thrust  # Backward only
+        self.thrust_table[1, 1] = ship_config.base_thrust  # Both -> cancel out to base
 
         # Indexed by [forward, backward] -> energy cost
-        self.energy_cost_table = np.zeros(2, 2, dtype=np.float32)
-        self.energy_cost_table[0, 0] = ship_config.base_energy_cost  # Base
-        self.energy_cost_table[0, 1] = ship_config.reverse_energy_cost  # Backward
-        self.energy_cost_table[1, 0] = ship_config.boost_energy_cost  # Forward
+        self.energy_cost_table = np.zeros((2, 2), dtype=np.float32)
+        self.energy_cost_table[0, 0] = ship_config.base_energy_cost  # Neither
+        self.energy_cost_table[1, 0] = ship_config.boost_energy_cost  # Forward only
+        self.energy_cost_table[0, 1] = ship_config.reverse_energy_cost  # Backward only
         self.energy_cost_table[1, 1] = ship_config.base_energy_cost  # Both -> base
 
         # Indexed by [turning, sharp] -> drag coefficient
-        self.drag_coeff_table = np.zeros(2, 2, dtype=np.float32)
+        self.drag_coeff_table = np.zeros((2, 2), dtype=np.float32)
         self.drag_coeff_table[0, 0] = ship_config.no_turn_drag_coeff  # No turn
         self.drag_coeff_table[0, 1] = ship_config.no_turn_drag_coeff  # No turn
         self.drag_coeff_table[1, 0] = ship_config.normal_turn_drag_coeff  # Normal turn
@@ -126,16 +128,17 @@ class Ship(nn.Module):
 
     def _extract_action_states(self, actions: torch.Tensor) -> ActionStates:
         return ActionStates(
-            left=actions[:, Actions.left].bool(),
-            right=actions[:, Actions.right].bool(),
-            forward=actions[:, Actions.forward].bool(),
-            backward=actions[:, Actions.backward].bool(),
-            sharp_turn=actions[:, Actions.sharp_turn].bool(),
+            left=int(actions[Actions.left]),
+            right=int(actions[Actions.right]),
+            forward=int(actions[Actions.forward]),
+            backward=int(actions[Actions.backward]),
+            sharp_turn=int(actions[Actions.sharp_turn]),
+            shoot=int(actions[Actions.shoot]),
         )
 
     def _update_power(self, actions: ActionStates, delta_t: float) -> None:
         energy_cost = self.energy_cost_table[actions.forward, actions.backward]
-        self.power -= energy_cost * delta_t
+        self.power += energy_cost * delta_t
         self.power = max(0.0, min(self.power, self.config.max_power))
 
     def _update_attitude(self, actions: ActionStates) -> None:
@@ -152,7 +155,7 @@ class Ship(nn.Module):
         else:
             thrust_force = 0 + 0j
 
-        turning = actions.left or actions.right
+        turning = int(actions.left or actions.right)
         drag_coeff = self.drag_coeff_table[turning, actions.sharp_turn]
         drag_force = -drag_coeff * self.speed * self.velocity
 
@@ -169,7 +172,7 @@ class Ship(nn.Module):
 
         self.velocity += acceleration * delta_t
         self.position += self.velocity * delta_t
-        self.speed = np.linalg.norm(self.velocity)
+        self.speed = abs(self.velocity)
         if self.speed < 1e-6:
             self.speed = 1e-6
             self.velocity = self.speed * self.attitude
@@ -208,8 +211,8 @@ class Ship(nn.Module):
                 vy=bullet_vy,
                 lifetime=self.config.bullet_lifetime,
             )
-
-        self.is_shooting = False
+        else:
+            self.is_shooting = False
 
     def forward(
         self,

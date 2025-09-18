@@ -9,7 +9,7 @@ from src2.ship import Ship, default_ship_config
 
 
 class Snapshot:
-    def __init__(self, ships: dict[str, Ship]) -> None:
+    def __init__(self, ships: dict[int, Ship]) -> None:
         self.ships = ships
 
         max_bullets = np.sum(ship.max_bullets for ship in ships.values())
@@ -67,7 +67,7 @@ class Environment(gym.Env):
     def get_observation(self) -> dict:
         raise NotImplementedError
 
-    def reset(self, game_mode: str = "1v1") -> dict:
+    def reset(self, game_mode: str = "1v1") -> tuple[dict, dict]:
         self.current_time = 0.0
         self.state: deque[Snapshot] = deque(maxlen=self.memory_size)
 
@@ -76,7 +76,7 @@ class Environment(gym.Env):
         else:
             raise ValueError(f"Unknown game mode: {game_mode}")
 
-        return self.get_observation()
+        return self.get_observation(), {}
 
     def _wrap_ship_position(self, position: complex) -> complex:
         """Wrap ship position to toroidal world boundaries"""
@@ -93,7 +93,9 @@ class Environment(gym.Env):
         bullets.x[active_slice] %= self.world_size[0]
         bullets.y[active_slice] %= self.world_size[1]
 
-    def _ship_actions(self, actions: dict, snapshot: Snapshot) -> None:
+    def _ship_actions(
+        self, actions: dict[int, torch.Tensor], snapshot: Snapshot
+    ) -> None:
         for ship_id, ship in snapshot.ships.items():
             if ship.alive:
                 ship.forward(
@@ -108,7 +110,7 @@ class Environment(gym.Env):
         bullets.update_all(self.physics_dt)
         self._wrap_bullet_positions(bullets)
 
-    def _ship_bullet_collisions(self, ships: dict[str, Ship], bullets: Bullets):
+    def _ship_bullet_collisions(self, ships: dict[int, Ship], bullets: Bullets):
         if bullets.num_active == 0:
             return
 
@@ -138,7 +140,42 @@ class Environment(gym.Env):
                 for idx in reversed(sorted(hit_indices)):  # Remove from back to front
                     bullets.remove_bullet(idx)
 
-    def step(self, actions: dict) -> dict:
+    def _calculate_rewards(self, snapshot: Snapshot) -> dict[int, float]:
+        """Calculate basic rewards for each ship"""
+        rewards = {}
+
+        for ship_id, ship in snapshot.ships.items():
+            reward = 0.0
+
+            # Survival reward
+            if ship.alive:
+                reward += 1.0
+            else:
+                reward -= 100.0  # Death penalty
+
+            # Health reward (encourage staying healthy)
+            reward += (ship.health / ship.config.max_health) * 0.5
+
+            rewards[ship_id] = reward
+
+        return rewards
+
+    def _check_termination(self, snapshot: Snapshot) -> tuple[bool, dict[int, bool]]:
+        """Check if episode should terminate and which agents are done"""
+        alive_ships = [ship for ship in snapshot.ships.values() if ship.alive]
+        alive_teams = set(ship.team_id for ship in alive_ships)
+
+        # Episode terminates if only one team remains or no ships alive
+        terminated = len(alive_teams) <= 1
+
+        # Individual agent done status
+        done = {ship_id: not ship.alive for ship_id, ship in snapshot.ships.items()}
+
+        return terminated, done
+
+    def step(
+        self, actions: dict[int, torch.Tensor]
+    ) -> tuple[dict, dict[int, float], bool, bool, dict]:
         current_snapshot = deepcopy(self.state[-1])
 
         for _ in range(self.physics_substeps):
@@ -151,4 +188,20 @@ class Environment(gym.Env):
             self.current_time += self.physics_dt
 
         self.state.append(current_snapshot)
-        return self.get_observation()
+
+        # Calculate rewards and termination
+        rewards = self._calculate_rewards(current_snapshot)
+        terminated, done = self._check_termination(current_snapshot)
+
+        # Info dict with useful debugging information
+        info = {
+            "current_time": self.current_time,
+            "active_bullets": current_snapshot.bullets.num_active,
+            "ship_states": {
+                ship_id: ship.get_state()
+                for ship_id, ship in current_snapshot.ships.items()
+            },
+            "individual_done": done,
+        }
+
+        return self.get_observation(), rewards, terminated, False, info
