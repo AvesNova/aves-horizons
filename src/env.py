@@ -9,14 +9,7 @@ from bullets import Bullets
 from ship import Ship, default_ship_config
 from renderer import create_renderer
 from enums import Actions
-
-
-class Snapshot:
-    def __init__(self, ships: dict[int, Ship]) -> None:
-        self.ships = ships
-
-        max_bullets = np.sum(ship.max_bullets for ship in ships.values())
-        self.bullets = Bullets(max_bullets=max_bullets)
+from snapshot import Snapshot
 
 
 class Environment(gym.Env):

@@ -5,7 +5,7 @@ import pygame
 from enums import Actions
 from ship import Ship
 from bullets import Bullets
-from env import Snapshot
+from snapshot import Snapshot
 
 
 class GameRenderer:
@@ -49,6 +49,9 @@ class GameRenderer:
 
     def handle_events(self) -> bool:
         """Handle pygame events and return whether to continue running"""
+        if not self.initialized:
+            self.initialize()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
@@ -58,6 +61,9 @@ class GameRenderer:
         """Update human actions based on current keyboard state"""
         if not self.human_ship_ids:
             return
+
+        if not self.initialized:
+            self.initialize()
 
         keys = pygame.key.get_pressed()
 
@@ -135,10 +141,10 @@ class GameRenderer:
         pygame.draw.polygon(self.screen, color, screen_points)
 
         # Draw health bar
-        bar_width = size * 2
+        bar_width = int(size * 2)
         bar_height = 4
-        bar_x = x - bar_width // 2
-        bar_y = y - size - 10
+        bar_x = int(x - bar_width // 2)
+        bar_y = int(y - size - 10)
 
         # Background (red)
         pygame.draw.rect(
@@ -148,7 +154,7 @@ class GameRenderer:
         pygame.draw.rect(
             self.screen,
             (0, 200, 0),
-            (bar_x, bar_y, bar_width * health_ratio, bar_height),
+            (bar_x, bar_y, int(bar_width * health_ratio), bar_height),
         )
 
     def _render_bullets(self, bullets: Bullets) -> None:

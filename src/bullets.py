@@ -1,7 +1,5 @@
 import numpy as np
 
-from ship import Ship
-
 
 class Bullets:
     def __init__(self, max_bullets: int) -> None:

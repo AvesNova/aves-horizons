@@ -7,7 +7,7 @@ Controls for Human Player (Ship 0):
 - Shift: Sharp turn mode
 - Space: Shoot
 
-The random agent (Ship 1) will move and shoot randomly.
+The random agent ( Ship 1) will move and shoot randomly.
 """
 
 import torch
