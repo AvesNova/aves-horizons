@@ -1,17 +1,12 @@
 import numpy as np
 
-from src2.ship import Ship
+from ship import Ship
 
 
 class Bullets:
-    def __init__(self, ships: dict[str, Ship]) -> None:
+    def __init__(self, max_bullets: int) -> None:
         self.num_active = 0
-
-        self.max_bullets = 0
-        for ship in ships.values():
-            max_bullets += int(
-                np.ceil(ship.config.bullet_lifetime / ship.config.firing_cooldown)
-            )
+        self.max_bullets = max_bullets
 
         self.x = np.zeros(self.max_bullets, dtype=np.float32)
         self.y = np.zeros(self.max_bullets, dtype=np.float32)

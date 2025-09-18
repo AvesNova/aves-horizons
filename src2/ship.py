@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from globals import Actions
-from src2.bullets import Bullets
+from bullets import Bullets
 
 
 @dataclass
@@ -69,6 +69,7 @@ class Ship(nn.Module):
         self.team_id = team_id
         self.config = ship_config
         self.rng = rng
+        self.collision_radius_squared = ship_config.collision_radius**2
 
         self.alive = True
         self.health = ship_config.max_health
@@ -229,6 +230,11 @@ class Ship(nn.Module):
         self._update_kinematics(actions, delta_t)
         self._update_power(actions, delta_t)
 
+    def damage_ship(self, damage: float) -> None:
+        self.health -= damage
+        if self.health <= 0:
+            self.alive = False
+
     def get_state(self) -> dict:
         return {
             "ship_id": self.ship_id,
@@ -242,3 +248,7 @@ class Ship(nn.Module):
             "attitude": (self.attitude.real, self.attitude.imag),
             "is_shooting": self.is_shooting,
         }
+
+    @property
+    def max_bullets(self) -> int:
+        return int(np.ceil(self.config.bullet_lifetime / self.config.firing_cooldown))
