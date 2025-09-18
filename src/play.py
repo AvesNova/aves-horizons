@@ -71,8 +71,14 @@ def main():
         physics_dt=0.02,
     )
 
-    # Create scripted agent for ship 1
-    scripted_agent = ScriptedAgent(max_shooting_range=500.0, angle_threshold=3.0)
+    # Create enhanced scripted agent for ship 1 with predictive targeting and dynamic shooting angles
+    scripted_agent = ScriptedAgent(
+        max_shooting_range=500.0,
+        angle_threshold=5.0,  # For turning precision
+        bullet_speed=500.0,
+        target_radius=10.0,  # Ship collision radius
+        radius_multiplier=1.5,  # Shoot within 1.5 target radii
+    )
 
     try:
         # Reset environment
@@ -91,7 +97,9 @@ def main():
             actions = {}
 
             # Scripted agent action for ship 1
-            if 1 in observation and observation[1]["self_state"][4] > 0:  # If ship_1 is alive
+            if (
+                1 in observation and observation[1]["self_state"][4] > 0
+            ):  # If ship_1 is alive
                 # Convert numpy arrays to tensors for the agent
                 obs_tensors = {
                     "self_state": torch.from_numpy(observation[1]["self_state"]),
