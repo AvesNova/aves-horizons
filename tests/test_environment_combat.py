@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import torch
 
-from enums import Actions
+from constants import Actions
 
 
 class TestCombatScenarios:

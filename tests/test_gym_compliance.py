@@ -8,7 +8,7 @@ import torch
 import gymnasium as gym
 from gymnasium.utils.env_checker import check_env
 
-from enums import Actions
+from constants import Actions
 
 
 class TestGymAPI:

@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from gymnasium import spaces
 
-from enums import Actions
+from constants import Actions
 
 
 class TestEnvironmentInitialization:

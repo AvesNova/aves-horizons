@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import pygame
 
-from enums import Actions
+from constants import Actions
 from ship import Ship
 from bullets import Bullets
 from state import State

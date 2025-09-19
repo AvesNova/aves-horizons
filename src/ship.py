@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from enums import Actions
+from constants import Actions
 from bullets import Bullets
 
 
@@ -63,12 +63,14 @@ class Ship(nn.Module):
         initial_y: float,
         initial_vx: float,
         initial_vy: float,
+        world_size: tuple[float, float] = (-1, -1),
         rng: np.random.Generator = np.random.default_rng(),
     ):
         super().__init__()
         self.ship_id = ship_id
         self.team_id = team_id
         self.config = ship_config
+        self.window_size = world_size
         self.rng = rng
         self.collision_radius_squared = ship_config.collision_radius**2
 
@@ -261,7 +263,25 @@ class Ship(nn.Module):
             "speed": self.speed,
             "attitude": (self.attitude.real, self.attitude.imag),
             "is_shooting": self.is_shooting,
+            "token": self.get_token(),
         }
+
+    def get_token(self) -> torch.Tensor:
+        return torch.tensor(
+            [
+                self.team_id,
+                self.health / self.config.max_health,
+                self.power / self.config.max_power,
+                self.position.real / self.window_size[0],
+                self.position.imag / self.window_size[1],
+                self.velocity.real / 100.0,
+                self.velocity.imag / 100.0,
+                self.attitude.real,
+                self.attitude.imag,
+                self.is_shooting,
+            ],
+            dtype=torch.float32,
+        )
 
     @property
     def max_bullets(self) -> int:

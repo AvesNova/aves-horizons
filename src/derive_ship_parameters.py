@@ -14,7 +14,7 @@ import math
 import os
 
 from ship import Ship, default_ship_config
-from enums import Actions
+from constants import Actions
 from bullets import Bullets
 
 

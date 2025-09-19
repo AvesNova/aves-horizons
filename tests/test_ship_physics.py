@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import torch
 
-from enums import Actions
+from constants import Actions
 from bullets import Bullets
 from ship import Ship
 
@@ -54,13 +54,15 @@ class TestShipInitialization:
             abs(basic_ship.turn_offset_table[0, 1, 0] - config.normal_turn_angle) < 1e-6
         )  # Right
         assert (
-            abs(basic_ship.turn_offset_table[1, 0, 0] - (-config.normal_turn_angle)) < 1e-6
+            abs(basic_ship.turn_offset_table[1, 0, 0] - (-config.normal_turn_angle))
+            < 1e-6
         )  # Left
         assert (
             abs(basic_ship.turn_offset_table[0, 1, 1] - config.sharp_turn_angle) < 1e-6
         )  # Sharp right
         assert (
-            abs(basic_ship.turn_offset_table[1, 0, 1] - (-config.sharp_turn_angle)) < 1e-6
+            abs(basic_ship.turn_offset_table[1, 0, 1] - (-config.sharp_turn_angle))
+            < 1e-6
         )  # Sharp left
 
         # Thrust table
@@ -133,16 +135,20 @@ class TestTurnMechanics:
         # Ship moving right (velocity = 100+0j)
         # Turn left (negative angle due to coordinate system)
         initial_attitude_angle = np.angle(basic_ship.attitude)
-        
+
         basic_ship.forward(action_combinations["left"], empty_bullets, 0.0, 0.01)
 
         # Left turn should result in negative angle change (counterclockwise)
         actual_angle = np.angle(basic_ship.attitude)
         # The attitude should have rotated in the negative direction
         # Account for physics affecting the exact result
-        assert actual_angle < initial_attitude_angle, "Left turn should decrease attitude angle"
+        assert (
+            actual_angle < initial_attitude_angle
+        ), "Left turn should decrease attitude angle"
         # Check that turn offset is correctly set to negative value for left turn
-        assert abs(basic_ship.turn_offset - (-basic_ship.config.normal_turn_angle)) < 1e-6
+        assert (
+            abs(basic_ship.turn_offset - (-basic_ship.config.normal_turn_angle)) < 1e-6
+        )
 
     def test_attitude_at_low_speed(
         self, basic_ship, action_combinations, empty_bullets
@@ -167,6 +173,7 @@ class TestThrustAndEnergy:
     def test_base_thrust_with_no_input(self, basic_ship, no_action, empty_bullets):
         """Test that base thrust is applied with no input."""
         initial_velocity = basic_ship.velocity
+        basic_ship.drag_coeff_table[0, 0] = 0.0
         basic_ship.forward(no_action, empty_bullets, 0.0, 0.1)
 
         # Velocity should increase due to base thrust (minus drag)
@@ -346,7 +353,9 @@ class TestAerodynamics:
         assert abs(ratio1 - expected_ratio1) < 0.1
         assert abs(ratio2 - expected_ratio2) < 0.1
 
-    def test_turn_increases_drag(self, zero_drag_ship_config, action_combinations, empty_bullets):
+    def test_turn_increases_drag(
+        self, zero_drag_ship_config, action_combinations, empty_bullets
+    ):
         """Test that turning increases drag coefficient."""
         # Create ship with only drag forces, no lift or thrust
         config = zero_drag_ship_config
@@ -358,7 +367,7 @@ class TestAerodynamics:
         # Ensure no lift forces
         config.normal_turn_lift_coeff = 0.0
         config.sharp_turn_lift_coeff = 0.0
-        
+
         # Test no turn case
         ship1 = Ship(
             ship_id=0,
@@ -372,7 +381,7 @@ class TestAerodynamics:
         ship1.power = 0.0
         ship1.forward(torch.zeros(len(Actions)), empty_bullets, 0.0, 0.1)
         no_turn_speed = ship1.speed
-        
+
         # Test turn case
         ship2 = Ship(
             ship_id=1,
@@ -386,11 +395,15 @@ class TestAerodynamics:
         ship2.power = 0.0
         ship2.forward(action_combinations["left"], empty_bullets, 0.0, 0.1)
         turn_speed = ship2.speed
-        
-        # Turning should cause more speed loss due to higher drag
-        assert turn_speed < no_turn_speed, f"Turn speed {turn_speed} should be less than no-turn speed {no_turn_speed}"
 
-    def test_lift_preserves_speed(self, zero_drag_ship_config, action_combinations, empty_bullets):
+        # Turning should cause more speed loss due to higher drag
+        assert (
+            turn_speed < no_turn_speed
+        ), f"Turn speed {turn_speed} should be less than no-turn speed {no_turn_speed}"
+
+    def test_lift_preserves_speed(
+        self, zero_drag_ship_config, action_combinations, empty_bullets
+    ):
         """Test that lift forces don't change speed, only direction."""
         # Create ship with zero drag and zero thrust for clean test
         config = zero_drag_ship_config
@@ -399,7 +412,7 @@ class TestAerodynamics:
         config.base_thrust = 0.0  # No thrust at all
         config.boost_thrust = 0.0
         config.reverse_thrust = 0.0
-        
+
         ship = Ship(
             ship_id=0,
             team_id=0,
@@ -410,25 +423,29 @@ class TestAerodynamics:
             initial_vy=0.0,
         )
         ship.power = 0.0  # No power for thrust
-        
+
         initial_speed = ship.speed
-        
+
         # Test normal turn
         ship.forward(action_combinations["left"], empty_bullets, 0.0, 0.1)
         normal_turn_speed = ship.speed
-        
+
         # Reset ship for sharp turn test
         ship.velocity = 100.0 + 0j
         ship.speed = 100.0
-        
+
         # Test sharp turn
         ship.forward(action_combinations["sharp_left"], empty_bullets, 0.0, 0.1)
         sharp_turn_speed = ship.speed
-        
+
         # Speed should remain approximately constant (allowing for numerical integration error)
         # With current integration method, some speed change is expected but should be small
-        assert abs(normal_turn_speed - initial_speed) < initial_speed * 0.05, f"Normal turn changed speed too much: {initial_speed} -> {normal_turn_speed}"
-        assert abs(sharp_turn_speed - initial_speed) < initial_speed * 0.10, f"Sharp turn changed speed too much: {initial_speed} -> {sharp_turn_speed}"
+        assert (
+            abs(normal_turn_speed - initial_speed) < initial_speed * 0.05
+        ), f"Normal turn changed speed too much: {initial_speed} -> {normal_turn_speed}"
+        assert (
+            abs(sharp_turn_speed - initial_speed) < initial_speed * 0.10
+        ), f"Sharp turn changed speed too much: {initial_speed} -> {sharp_turn_speed}"
 
     def test_lift_perpendicular_to_velocity(
         self, zero_drag_ship_config, action_combinations, empty_bullets
@@ -617,6 +634,7 @@ class TestStateRetrieval:
             "speed",
             "attitude",
             "is_shooting",
+            "token",
         }
         assert set(state.keys()) == expected_keys
 

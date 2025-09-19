@@ -9,7 +9,7 @@ The agent implements a simple strategy:
 import torch
 import torch.nn as nn
 import numpy as np
-from enums import Actions
+from constants import Actions
 
 
 class ScriptedAgent(nn.Module):

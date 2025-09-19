@@ -13,7 +13,7 @@ The scripted agent (Ship 1) will intelligently target and shoot at the human pla
 import torch
 import numpy as np
 from env import Environment
-from enums import Actions
+from constants import Actions
 from scripted_agent import ScriptedAgent
 
 

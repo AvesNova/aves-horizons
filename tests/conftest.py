@@ -17,7 +17,7 @@ from ship import Ship, ShipConfig
 from bullets import Bullets
 from env import Environment
 from state import State
-from enums import Actions
+from constants import Actions
 from derive_ship_parameters import derive_ship_parameters
 
 

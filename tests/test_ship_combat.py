@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 import torch
 
-from enums import Actions
+from constants import Actions
 from bullets import Bullets
 
 
@@ -90,7 +90,7 @@ class TestShooting:
         # Set ship velocity
         basic_ship.velocity = 50.0 + 25.0j
         basic_ship.speed = abs(basic_ship.velocity)
-        
+
         # Capture velocity and attitude before shooting (since bullet is created before kinematics update)
         initial_velocity = basic_ship.velocity
         initial_attitude = basic_ship.attitude

@@ -8,7 +8,7 @@ from gymnasium import spaces
 from bullets import Bullets
 from ship import Ship, default_ship_config
 from renderer import create_renderer
-from enums import Actions
+from constants import Actions
 from state import State
 
 
@@ -72,6 +72,7 @@ class Environment(gym.Env):
             initial_y=0.40 * self.world_size[1],
             initial_vx=100.0,
             initial_vy=0.0,
+            world_size=self.world_size,
         )
 
         ship_1 = Ship(
@@ -82,6 +83,7 @@ class Environment(gym.Env):
             initial_y=0.60 * self.world_size[1],
             initial_vx=-100.0,
             initial_vy=0.0,
+            world_size=self.world_size,
         )
 
         ships = {0: ship_0, 1: ship_1}
