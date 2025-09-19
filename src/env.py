@@ -261,8 +261,15 @@ class Environment(gym.Env):
         for ship_id, ship in current_state.ships.items():
             local_obs = ship.get_state()
             for key, value in local_obs.items():
-                observations[key][ship_id, :] = torch.tensor(value)
+                if key == "token":
+                    # Token is already a tensor, store directly
+                    observations[key][ship_id, :] = value
+                else:
+                    observations[key][ship_id, :] = torch.tensor(value)
 
+        # Create tokens matrix for transformer model
+        observations["tokens"] = observations["token"]
+        
         return observations
 
     def _get_empty_observation(self) -> dict:

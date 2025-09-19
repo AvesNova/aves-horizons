@@ -122,13 +122,13 @@ class TestMultiAgentCompliance:
     def test_multi_agent_reset(self, basic_env):
         """Test that reset returns observations for all agents."""
         obs, info = basic_env.reset(game_mode="1v1")
-
+    
         # Should return dict of observations
         assert isinstance(obs, dict)
-
+    
         # Should have observation components for ships
-        expected_keys = {"ship_id", "team_id", "alive", "health", "power", 
-                        "position", "velocity", "speed", "attitude", "is_shooting", "token"}
+        expected_keys = {"ship_id", "team_id", "alive", "health", "power",
+                        "position", "velocity", "speed", "attitude", "is_shooting", "token", "tokens"}
         assert set(obs.keys()) == expected_keys
         
         # Each component should have data for both ships

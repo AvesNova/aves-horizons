@@ -5,7 +5,7 @@ Custom SB3 policy that integrates the transformer model.
 import torch
 import torch.nn as nn
 import numpy as np
-from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.policies import ActorCriticPolicy, BasePolicy
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.distributions import BernoulliDistribution
 from stable_baselines3 import PPO
@@ -98,7 +98,7 @@ class TransformerFeaturesExtractor(BaseFeaturesExtractor):
         return features
 
 
-class TransformerActorCriticPolicy(BasePolicy):
+class TransformerActorCriticPolicy(ActorCriticPolicy):
     """
     Custom Actor-Critic policy using transformer features.
     """
@@ -121,6 +121,7 @@ class TransformerActorCriticPolicy(BasePolicy):
         super().__init__(
             observation_space,
             action_space,
+            lr_schedule,
             features_extractor_class=TransformerFeaturesExtractor,
             features_extractor_kwargs={
                 "transformer_config": transformer_config,
@@ -129,32 +130,6 @@ class TransformerActorCriticPolicy(BasePolicy):
             },
             **kwargs
         )
-
-        # Action space should be MultiBinary
-        assert isinstance(action_space, spaces.MultiBinary)
-        self.action_dim = action_space.n
-
-        # Get features dimension
-        features_dim = self.features_extractor.features_dim
-
-        # Actor network (policy)
-        self.action_net = nn.Sequential(
-            nn.Linear(features_dim, features_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(features_dim // 2, self.action_dim),
-        )
-
-        # Critic network (value function)
-        self.value_net = nn.Sequential(
-            nn.Linear(features_dim, features_dim // 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(features_dim // 2, 1),
-        )
-
-        # Action distribution
-        self.action_dist = BernoulliDistribution(self.action_dim)
 
     def _get_constructor_parameters(self) -> Dict[str, any]:
         data = super()._get_constructor_parameters()
@@ -167,58 +142,11 @@ class TransformerActorCriticPolicy(BasePolicy):
         )
         return data
 
-    def forward(
-        self, obs: torch.Tensor, deterministic: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Forward pass for both actor and critic.
-
-        Returns:
-            actions, values, log_probs
-        """
-        features = self.extract_features(obs)
-
-        # Get action logits and value
-        action_logits = self.action_net(features)
-        values = self.value_net(features)
-
-        # Create distribution and sample actions
-        self.action_dist = self.action_dist.proba_distribution(action_logits)
-        actions = self.action_dist.get_actions(deterministic=deterministic)
-        log_probs = self.action_dist.log_prob(actions)
-
-        return actions, values, log_probs
-
-    def evaluate_actions(
-        self, obs: torch.Tensor, actions: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Evaluate actions for PPO updates.
-
-        Returns:
-            values, log_probs, entropy
-        """
-        features = self.extract_features(obs)
-
-        action_logits = self.action_net(features)
-        values = self.value_net(features)
-
-        self.action_dist = self.action_dist.proba_distribution(action_logits)
-        log_probs = self.action_dist.log_prob(actions)
-        entropy = self.action_dist.entropy()
-
-        return values, log_probs, entropy
-
-    def predict_values(self, obs: torch.Tensor) -> torch.Tensor:
-        """
-        Predict values for critic.
-        """
-        features = self.extract_features(obs)
-        return self.value_net(features)
 
     def get_transformer_model(self) -> TeamTransformerModel:
         """Get the underlying transformer model for self-play memory."""
         return self.features_extractor.transformer
+
 
 
 def create_team_ppo_model(

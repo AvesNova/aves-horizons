@@ -47,7 +47,7 @@ model:
     use_layer_norm: true
   
   ppo:
-    learning_rate: 3e-4
+    learning_rate: 0.0003
     n_steps: 4096
     batch_size: 128
     n_epochs: 10

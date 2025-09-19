@@ -91,17 +91,17 @@ class TestReset:
     def test_reset_returns_observations(self, basic_env):
         """Test that reset returns proper observations."""
         obs, info = basic_env.reset(game_mode="1v1")
-
+    
         assert isinstance(obs, dict)
-        
+    
         # Check new observation structure with ship data as tensors
-        expected_keys = {"ship_id", "team_id", "alive", "health", "power", 
-                        "position", "velocity", "speed", "attitude", "is_shooting", "token"}
+        expected_keys = {"ship_id", "team_id", "alive", "health", "power",
+                        "position", "velocity", "speed", "attitude", "is_shooting", "token", "tokens"}
         assert set(obs.keys()) == expected_keys
         
         # Check tensor shapes for 2 ships
         for key in obs:
-            if key == "token":
+            if key in ["token", "tokens"]:
                 assert obs[key].shape == (2, 10)  # 2 ships, 10 token dimensions
             else:
                 assert obs[key].shape == (2, 1)  # 2 ships, 1 dimension each
@@ -118,16 +118,16 @@ class TestObservations:
     def test_observation_structure(self, basic_env):
         """Test observation has correct structure."""
         obs, _ = basic_env.reset(game_mode="1v1")
-
+    
         # Check that all observation components are tensors with correct shapes
-        expected_keys = {"ship_id", "team_id", "alive", "health", "power", 
-                        "position", "velocity", "speed", "attitude", "is_shooting", "token"}
+        expected_keys = {"ship_id", "team_id", "alive", "health", "power",
+                        "position", "velocity", "speed", "attitude", "is_shooting", "token", "tokens"}
         assert set(obs.keys()) == expected_keys
         
         # Check tensor types and shapes for max_ships=2
         for key, tensor in obs.items():
             assert isinstance(tensor, torch.Tensor)
-            if key == "token":
+            if key in ["token", "tokens"]:
                 assert tensor.shape == (basic_env.max_ships, 10)
                 assert tensor.dtype == torch.float32
             else:

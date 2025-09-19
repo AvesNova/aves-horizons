@@ -3,3 +3,5 @@
 best_model/
 logs/
 __pycache__/
+checkpoints/
+*.zip
