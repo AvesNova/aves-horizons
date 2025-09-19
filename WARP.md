@@ -15,7 +15,7 @@ Aves-Horizons is a physics-based space combat simulation game designed for AI re
 - Multi-agent support with independent action/observation spaces
 - Physics substeps at 50Hz with agent decisions at 10Hz
 - Toroidal (wrap-around) world boundaries
-- Memory system storing temporal snapshots for transformer training
+- Memory system storing temporal states for transformer training
 
 **Ship System (`src/ship.py`)**
 - Complex physics model with thrust, drag, and lift forces
@@ -38,7 +38,7 @@ Aves-Horizons is a physics-based space combat simulation game designed for AI re
 
 **Physics-First Design**: All game mechanics are physics-based rather than rule-based. Ships experience realistic thrust, drag, and lift forces with proper momentum conservation.
 
-**Temporal Memory Architecture**: The environment maintains a deque of snapshots designed to support transformer models that learn from temporal sequences of ship states.
+**Temporal Memory Architecture**: The environment maintains a deque of states designed to support transformer models that learn from temporal sequences of ship states.
 
 **Vectorized Operations**: Heavy use of NumPy for batch operations across multiple ships/bullets for performance.
 
@@ -90,7 +90,7 @@ Actions use MultiBinary(6) encoding where simultaneous button presses create eme
 
 ### Memory and Observation Design
 The environment maintains temporal history specifically for transformer training:
-- `memory_size` parameter controls snapshot retention
+- `memory_size` parameter controls state retention
 - Observations include self state, enemy state, nearby bullets, and world info
 - Designed to support the transformer architecture detailed in `docs/model.md`
 

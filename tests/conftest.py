@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from ship import Ship, ShipConfig
 from bullets import Bullets
 from env import Environment
-from snapshot import Snapshot
+from state import State
 from enums import Actions
 
 
@@ -234,20 +234,20 @@ def action_combinations() -> dict[str, torch.Tensor]:
     return combinations
 
 
-# --- Snapshot Fixtures ---
+# --- State Fixtures ---
 
 
 @pytest.fixture
-def empty_snapshot() -> Snapshot:
-    """Creates an empty snapshot."""
-    return Snapshot(ships={})
+def empty_state() -> State:
+    """Creates an empty state."""
+    return State(ships={})
 
 
 @pytest.fixture
-def combat_snapshot(two_ships) -> Snapshot:
-    """Creates a snapshot with two ships ready for combat."""
+def combat_state(two_ships) -> State:
+    """Creates a state with two ships ready for combat."""
     ship1, ship2 = two_ships
-    return Snapshot(ships={0: ship1, 1: ship2})
+    return State(ships={0: ship1, 1: ship2})
 
 
 # --- Random Number Generator Fixtures ---

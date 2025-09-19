@@ -9,7 +9,7 @@ from bullets import Bullets
 from ship import Ship, default_ship_config
 from renderer import create_renderer
 from enums import Actions
-from snapshot import Snapshot
+from state import State
 
 
 class Environment(gym.Env):
@@ -42,7 +42,7 @@ class Environment(gym.Env):
 
         # Initialize state
         self.current_time = 0.0
-        self.state: deque[Snapshot] = deque(maxlen=memory_size)
+        self.state: deque[State] = deque(maxlen=memory_size)
 
     @property
     def renderer(self):
@@ -63,7 +63,7 @@ class Environment(gym.Env):
         if self.render_mode == "human":
             self.renderer.remove_human_player(ship_id)
 
-    def one_vs_one_reset(self) -> Snapshot:
+    def one_vs_one_reset(self) -> State:
         ship_0 = Ship(
             ship_id=0,
             team_id=0,
@@ -85,7 +85,7 @@ class Environment(gym.Env):
         )
 
         ships = {0: ship_0, 1: ship_1}
-        return Snapshot(ships=ships)
+        return State(ships=ships)
 
     def reset(self, game_mode: str = "1v1") -> tuple[dict, dict]:
         self.current_time = 0.0
@@ -98,10 +98,10 @@ class Environment(gym.Env):
 
         return self.get_observation(), {}
 
-    def render(self, snapshot: Snapshot) -> None:
+    def render(self, state: State) -> None:
         """Render current game state"""
         if self.render_mode == "human" and len(self.state) > 0:
-            self.renderer.render(snapshot)
+            self.renderer.render(state)
 
     def _wrap_ship_position(self, position: complex) -> complex:
         """Wrap ship position to toroidal world boundaries"""
@@ -118,14 +118,12 @@ class Environment(gym.Env):
         bullets.x[active_slice] %= self.world_size[0]
         bullets.y[active_slice] %= self.world_size[1]
 
-    def _ship_actions(
-        self, actions: dict[int, torch.Tensor], snapshot: Snapshot
-    ) -> None:
-        for ship_id, ship in snapshot.ships.items():
+    def _ship_actions(self, actions: dict[int, torch.Tensor], state: State) -> None:
+        for ship_id, ship in state.ships.items():
             if ship.alive:
                 ship.forward(
                     actions[ship_id],
-                    snapshot.bullets,
+                    state.bullets,
                     self.current_time,
                     self.physics_dt,
                 )
@@ -160,11 +158,11 @@ class Environment(gym.Env):
                 for idx in reversed(sorted(hit_indices)):
                     bullets.remove_bullet(idx)
 
-    def _calculate_rewards(self, snapshot: Snapshot) -> dict[int, float]:
+    def _calculate_rewards(self, state: State) -> dict[int, float]:
         """Calculate basic rewards for each ship"""
         rewards = {}
 
-        for ship_id, ship in snapshot.ships.items():
+        for ship_id, ship in state.ships.items():
             reward = 0.0
 
             if ship.alive:
@@ -177,13 +175,13 @@ class Environment(gym.Env):
 
         return rewards
 
-    def _check_termination(self, snapshot: Snapshot) -> tuple[bool, dict[int, bool]]:
+    def _check_termination(self, state: State) -> tuple[bool, dict[int, bool]]:
         """Check if episode should terminate and which agents are done"""
-        alive_ships = [ship for ship in snapshot.ships.values() if ship.alive]
+        alive_ships = [ship for ship in state.ships.values() if ship.alive]
         alive_teams = set(ship.team_id for ship in alive_ships)
 
         terminated = len(alive_teams) <= 1
-        done = {ship_id: not ship.alive for ship_id, ship in snapshot.ships.items()}
+        done = {ship_id: not ship.alive for ship_id, ship in state.ships.items()}
 
         return terminated, done
 
@@ -197,7 +195,8 @@ class Environment(gym.Env):
                 # User closed window - could handle this gracefully
                 pass
 
-        current_snapshot = deepcopy(self.state[-1])
+        current_state = deepcopy(self.state[-1])
+        current_state.time += self.agent_dt
 
         # Run physics substeps with rendering
         for substep in range(self.physics_substeps):
@@ -211,29 +210,27 @@ class Environment(gym.Env):
                 merged_actions = actions
 
             # Physics step
-            self._ship_actions(merged_actions, current_snapshot)
-            self._bullet_actions(current_snapshot.bullets)
-            self._ship_bullet_collisions(
-                current_snapshot.ships, current_snapshot.bullets
-            )
+            self._ship_actions(merged_actions, current_state)
+            self._bullet_actions(current_state.bullets)
+            self._ship_bullet_collisions(current_state.ships, current_state.bullets)
             self.current_time += self.physics_dt
 
             if self.render_mode == "human":
-                self.render(current_snapshot)
+                self.render(current_state)
 
         # Save final state
-        self.state.append(current_snapshot)
+        self.state.append(current_state)
 
         # Calculate rewards and termination
-        rewards = self._calculate_rewards(current_snapshot)
-        terminated, done = self._check_termination(current_snapshot)
+        rewards = self._calculate_rewards(current_state)
+        terminated, done = self._check_termination(current_state)
 
         info = {
             "current_time": self.current_time,
-            "active_bullets": current_snapshot.bullets.num_active,
+            "active_bullets": current_state.bullets.num_active,
             "ship_states": {
                 ship_id: ship.get_state()
-                for ship_id, ship in current_snapshot.ships.items()
+                for ship_id, ship in current_state.ships.items()
             },
             "individual_done": done,
         }
@@ -259,13 +256,11 @@ class Environment(gym.Env):
                 for ship_id in range(self.n_ships)
             }
 
-        current_snapshot = self.state[-1]
+        current_state = self.state[-1]
         observations = {}
 
-        for ship_id, ship in current_snapshot.ships.items():
-            observations[ship_id] = self._get_ship_observation(
-                ship_id, current_snapshot
-            )
+        for ship_id, ship in current_state.ships.items():
+            observations[ship_id] = self._get_ship_observation(ship_id, current_state)
 
         return observations
 
@@ -283,9 +278,9 @@ class Environment(gym.Env):
             "time": 0.0,
         }
 
-    def _get_ship_observation(self, ship_id: int, snapshot: Snapshot) -> dict:
+    def _get_ship_observation(self, ship_id: int, state: State) -> dict:
         """Get observation for a specific ship"""
-        ship = snapshot.ships[ship_id]
+        ship = state.ships[ship_id]
 
         # Self state: position, velocity, health, power, attitude
         self_state = np.array(
@@ -304,7 +299,7 @@ class Environment(gym.Env):
 
         # Enemy state (find the first enemy ship)
         enemy_state = np.zeros(8, dtype=np.float32)
-        for enemy_id, enemy_ship in snapshot.ships.items():
+        for enemy_id, enemy_ship in state.ships.items():
             if enemy_id != ship_id and enemy_ship.team_id != ship.team_id:
                 if enemy_ship.alive:
                     enemy_state = np.array(
@@ -324,8 +319,8 @@ class Environment(gym.Env):
 
         # Bullet observations (relative to this ship)
         bullets = np.zeros((20, 6), dtype=np.float32)  # Max 20 bullets
-        if snapshot.bullets.num_active > 0:
-            bx, by, bullet_ship_ids = snapshot.bullets.get_active_positions()
+        if state.bullets.num_active > 0:
+            bx, by, bullet_ship_ids = state.bullets.get_active_positions()
 
             # Calculate distances to sort by closest
             dx = bx - ship.position.real
@@ -343,9 +338,9 @@ class Environment(gym.Env):
                     bullets[i] = [
                         dx[bullet_idx] / self.world_size[0],  # Relative x
                         dy[bullet_idx] / self.world_size[1],  # Relative y
-                        snapshot.bullets.vx[bullet_idx] / 1000.0,  # Velocity x
-                        snapshot.bullets.vy[bullet_idx] / 1000.0,  # Velocity y
-                        snapshot.bullets.time_remaining[bullet_idx],  # Time left
+                        state.bullets.vx[bullet_idx] / 1000.0,  # Velocity x
+                        state.bullets.vy[bullet_idx] / 1000.0,  # Velocity y
+                        state.bullets.time_remaining[bullet_idx],  # Time left
                         (
                             1.0 if bullet_ship_ids[bullet_idx] != ship_id else 0.0
                         ),  # Is enemy bullet

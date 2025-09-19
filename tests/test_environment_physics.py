@@ -90,13 +90,13 @@ class TestCollisions:
     def test_bullet_ship_collision(self, basic_env):
         """Test that bullets hitting ships cause damage."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
-        ship1 = snapshot.ships[1]
+        ship1 = state.ships[1]
         initial_health = ship1.health
 
         # Place bullet at ship1's position from ship0
-        snapshot.bullets.add_bullet(
+        state.bullets.add_bullet(
             ship_id=0,
             x=ship1.position.real,
             y=ship1.position.imag,
@@ -119,13 +119,13 @@ class TestCollisions:
     def test_no_friendly_fire(self, basic_env):
         """Test that ships don't damage themselves with their own bullets."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
-        ship0 = snapshot.ships[0]
+        ship0 = state.ships[0]
         initial_health = ship0.health
 
         # Place ship0's bullet at its own position
-        snapshot.bullets.add_bullet(
+        state.bullets.add_bullet(
             ship_id=0,
             x=ship0.position.real,
             y=ship0.position.imag,
@@ -147,14 +147,14 @@ class TestCollisions:
     def test_multiple_bullet_hits(self, basic_env):
         """Test that multiple bullets can hit same ship."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
-        ship1 = snapshot.ships[1]
+        ship1 = state.ships[1]
         initial_health = ship1.health
 
         # Place 3 bullets at ship1's position
         for _ in range(3):
-            snapshot.bullets.add_bullet(
+            state.bullets.add_bullet(
                 ship_id=0,
                 x=ship1.position.real,
                 y=ship1.position.imag,
@@ -177,14 +177,14 @@ class TestCollisions:
     def test_collision_radius(self, basic_env):
         """Test that collision radius is respected."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
-        ship1 = snapshot.ships[1]
+        ship1 = state.ships[1]
         initial_health = ship1.health
 
         # Place bullet just outside collision radius
         offset = ship1.config.collision_radius + 1.0
-        snapshot.bullets.add_bullet(
+        state.bullets.add_bullet(
             ship_id=0,
             x=ship1.position.real + offset,
             y=ship1.position.imag,
@@ -206,15 +206,15 @@ class TestCollisions:
     def test_dead_ship_no_collision(self, basic_env):
         """Test that dead ships don't interact with bullets."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
         # Kill ship1
-        ship1 = snapshot.ships[1]
+        ship1 = state.ships[1]
         ship1.alive = False
         ship1.health = 0
 
         # Place bullet at dead ship's position
-        snapshot.bullets.add_bullet(
+        state.bullets.add_bullet(
             ship_id=0,
             x=ship1.position.real,
             y=ship1.position.imag,
@@ -355,9 +355,9 @@ class TestInfoDict:
         basic_env.reset(game_mode="1v1")
 
         # Add some bullets manually
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
         for i in range(3):
-            snapshot.bullets.add_bullet(0, i * 100, i * 100, 0, 0, 1.0)
+            state.bullets.add_bullet(0, i * 100, i * 100, 0, 0, 1.0)
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         obs, rewards, terminated, truncated, info = basic_env.step(actions)

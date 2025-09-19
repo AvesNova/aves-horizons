@@ -52,16 +52,16 @@ class TestReset:
         obs, info = basic_env.reset(game_mode="1v1")
 
         assert len(basic_env.state) == 1
-        snapshot = basic_env.state[0]
+        state = basic_env.state[0]
 
         # Check ships were created
-        assert len(snapshot.ships) == 2
-        assert 0 in snapshot.ships
-        assert 1 in snapshot.ships
+        assert len(state.ships) == 2
+        assert 0 in state.ships
+        assert 1 in state.ships
 
         # Check initial positions (from one_vs_one_reset)
-        ship0 = snapshot.ships[0]
-        ship1 = snapshot.ships[1]
+        ship0 = state.ships[0]
+        ship1 = state.ships[1]
 
         assert ship0.position.real == 0.25 * basic_env.world_size[0]
         assert ship0.position.imag == 0.40 * basic_env.world_size[1]
@@ -200,17 +200,17 @@ class TestObservations:
     def test_bullet_relative_positions(self, basic_env):
         """Test that bullet positions are relative to observing ship."""
         basic_env.reset(game_mode="1v1")
-        snapshot = basic_env.state[-1]
+        state = basic_env.state[-1]
 
         # Manually add a bullet
-        snapshot.bullets.add_bullet(
+        state.bullets.add_bullet(
             ship_id=0, x=400.0, y=300.0, vx=100.0, vy=0.0, lifetime=1.0
         )
 
         obs = basic_env.get_observation()
 
         # Get ship 1's observation of the bullet
-        ship1 = snapshot.ships[1]
+        ship1 = state.ships[1]
         ship1_bullets = obs[1]["bullets"]
 
         # First bullet should have relative position
@@ -242,7 +242,9 @@ class TestWorldWrapping:
         # Position should wrap, accounting for movement during physics step
         wrapped_ship = basic_env.state[-1].ships[0]
         # Expected position: (initial + velocity*dt) % world_size
-        expected_real = (basic_env.world_size[0] + 50.0 + initial_velocity.real * basic_env.agent_dt) % basic_env.world_size[0]
+        expected_real = (
+            basic_env.world_size[0] + 50.0 + initial_velocity.real * basic_env.agent_dt
+        ) % basic_env.world_size[0]
         assert abs(wrapped_ship.position.real - expected_real) < 1.0
         assert abs(wrapped_ship.position.imag - 300.0) < 1.0
 
@@ -267,7 +269,7 @@ class TestWorldWrapping:
             basic_env.reset(game_mode="1v1")
             ship = basic_env.state[-1].ships[0]
             velocity = ship.velocity  # Get fresh velocity after reset
-            
+
             ship.position = initial
             basic_env.step(actions)
 
@@ -275,21 +277,25 @@ class TestWorldWrapping:
             moved_pos = initial + velocity * dt
             expected_real = moved_pos.real % basic_env.world_size[0]
             expected_imag = moved_pos.imag % basic_env.world_size[1]
-            
+
             wrapped = basic_env.state[-1].ships[0].position
-            assert abs(wrapped.real - expected_real) < 1.0, f"{description} boundary wrapping failed"
-            assert abs(wrapped.imag - expected_imag) < 1.0, f"{description} boundary wrapping failed"
+            assert (
+                abs(wrapped.real - expected_real) < 1.0
+            ), f"{description} boundary wrapping failed"
+            assert (
+                abs(wrapped.imag - expected_imag) < 1.0
+            ), f"{description} boundary wrapping failed"
 
     def test_bullet_position_wrapping(self, basic_env):
         """Test that bullet positions wrap at boundaries."""
         basic_env.reset(game_mode="1v1")
 
         # Add bullets at boundaries
-        snapshot = basic_env.state[-1]
-        snapshot.bullets.add_bullet(0, -10.0, 300.0, 100.0, 0.0, 1.0)
-        snapshot.bullets.add_bullet(0, 810.0, 300.0, 100.0, 0.0, 1.0)
-        snapshot.bullets.add_bullet(0, 400.0, -10.0, 0.0, 100.0, 1.0)
-        snapshot.bullets.add_bullet(0, 400.0, 610.0, 0.0, 100.0, 1.0)
+        state = basic_env.state[-1]
+        state.bullets.add_bullet(0, -10.0, 300.0, 100.0, 0.0, 1.0)
+        state.bullets.add_bullet(0, 810.0, 300.0, 100.0, 0.0, 1.0)
+        state.bullets.add_bullet(0, 400.0, -10.0, 0.0, 100.0, 1.0)
+        state.bullets.add_bullet(0, 400.0, 610.0, 0.0, 100.0, 1.0)
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         basic_env.step(actions)

@@ -5,7 +5,7 @@ import pygame
 from enums import Actions
 from ship import Ship
 from bullets import Bullets
-from snapshot import Snapshot
+from state import State
 
 
 class GameRenderer:
@@ -64,7 +64,7 @@ class GameRenderer:
 
         if not self.initialized:
             self.initialize()
-            
+
         keys = pygame.key.get_pressed()
 
         for ship_id in self.human_ship_ids:
@@ -175,11 +175,11 @@ class GameRenderer:
 
             pygame.draw.circle(self.screen, color, (int(x), int(y)), 2)
 
-    def _render_ui(self, snapshot: Snapshot) -> None:
+    def _render_ui(self, state: State) -> None:
         """Render UI information"""
         y_offset = 10
 
-        for ship_id, ship in snapshot.ships.items():
+        for ship_id, ship in state.ships.items():
             if not ship.alive:
                 continue
 
@@ -201,7 +201,7 @@ class GameRenderer:
 
             y_offset += 70
 
-    def render(self, snapshot: Snapshot) -> None:
+    def render(self, state: State) -> None:
         """Render the current game state"""
         if not self.initialized:
             self.initialize()
@@ -210,11 +210,11 @@ class GameRenderer:
         self.screen.fill((0, 0, 20))  # Dark blue background
 
         # Render game objects
-        for ship in snapshot.ships.values():
+        for ship in state.ships.values():
             self._render_ship(ship)
 
-        self._render_bullets(snapshot.bullets)
-        self._render_ui(snapshot)
+        self._render_bullets(state.bullets)
+        self._render_ui(state)
 
         # Update display
         pygame.display.flip()
