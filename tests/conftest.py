@@ -18,6 +18,16 @@ from bullets import Bullets
 from env import Environment
 from state import State
 from enums import Actions
+from derive_ship_parameters import derive_ship_parameters
+
+
+# --- Ship Derived Parameters Fixtures ---
+
+
+@pytest.fixture
+def derived_ship_parameters() -> dict:
+    """Provides the default ship configuration."""
+    return derive_ship_parameters()
 
 
 # --- Ship Configuration Fixtures ---
