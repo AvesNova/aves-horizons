@@ -35,25 +35,6 @@ While conceptually two-part, the actual implementation uses end-to-end training 
 ### Base Token Representation
 Each token represents one ship's state at one timestep:
 
-```python
-base_token = [
-    team,            # 1 if on the same team
-    pos_x,           # World X coordinate
-    pos_y,           # World Y coordinate  
-    vel_x,           # Velocity X component
-    vel_y,           # Velocity Y component
-    attitude_x,      # Facing direction X (cos θ)
-    attitude_y,      # Facing direction Y (sin θ)
-    turn_offset,     # Turn angle offset from velocity
-    boost_norm,      # Boost energy (normalized 0-1)
-    health_norm,     # Health points (normalized 0-1)
-    ammo_norm,       # Ammunition count (normalized 0-1)
-    is_shooting,     # Binary shooting state
-    timestep_offset  # Temporal position in sequence
-]
-# Total: 13 dimensions
-```
-
 ### Encoding Strategy
 
 **Ship Identity Encoding**

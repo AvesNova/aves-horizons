@@ -37,7 +37,7 @@ class ShipConfig:
     bullet_damage: float = 10.0
     bullet_lifetime: float = 1.0
     bullet_spread: float = 12.0
-    firing_cooldown: float = 0.1
+    firing_cooldown: float = 0.08
 
 
 default_ship_config = ShipConfig()
