@@ -20,14 +20,14 @@ from scripted_agent import ScriptedAgent
 def print_game_info():
     """Print game instructions"""
     print("=" * 60)
-    print("SPACE COMBAT - Human vs Scripted Agent")
+    print("SPACE COMBAT - 2v2 Team Battle")
     print("=" * 60)
-    print("Controls for Human Player (Blue Ship):")
+    print("Controls for Human Player (Team 0, Ship 0):")
     print("  Arrow Keys or WASD: Move")
     print("  Shift: Sharp turn mode (more agile but uses more energy)")
     print("  Space: Shoot")
     print("\nObjective:")
-    print("  Destroy the enemy ship (Red) while staying alive!")
+    print("  Work with your AI teammate (Ship 1) to destroy Team 1 (Ships 2 & 3)!")
     print("  Watch your health and power levels.")
     print("\nPress any key to start, ESC or close window to quit.")
     print("=" * 60)
@@ -66,21 +66,41 @@ def main():
         render_mode="human",
         world_size=(1200, 800),
         memory_size=1,
-        max_ships=2,
+        max_ships=4,  # Support 2v2 mode with 4 ships
         agent_dt=0.04,
         physics_dt=0.02,
     )
 
-    # Create enhanced scripted agent for ship 1 with predictive targeting and dynamic shooting angles
-    scripted_agent = ScriptedAgent(
-        controlled_ship_id=1,  # Controls ship 1
-        max_shooting_range=500.0,
-        angle_threshold=5.0,  # For turning precision
-        bullet_speed=500.0,
-        target_radius=10.0,  # Ship collision radius
-        radius_multiplier=1.5,  # Shoot within 1.5 target radii
-        world_size=(1200, 800),  # Match environment world size
-    )
+    # Create scripted agents for AI ships in 2v2 mode
+    scripted_agents = {
+        1: ScriptedAgent(  # Team 0, Ship 1 (AI teammate)
+            controlled_ship_id=1,
+            max_shooting_range=500.0,
+            angle_threshold=5.0,
+            bullet_speed=500.0,
+            target_radius=10.0,
+            radius_multiplier=1.5,
+            world_size=(1200, 800),
+        ),
+        2: ScriptedAgent(  # Team 1, Ship 2 (AI enemy)
+            controlled_ship_id=2,
+            max_shooting_range=500.0,
+            angle_threshold=5.0,
+            bullet_speed=500.0,
+            target_radius=10.0,
+            radius_multiplier=1.5,
+            world_size=(1200, 800),
+        ),
+        3: ScriptedAgent(  # Team 1, Ship 3 (AI enemy)
+            controlled_ship_id=3,
+            max_shooting_range=500.0,
+            angle_threshold=5.0,
+            bullet_speed=500.0,
+            target_radius=10.0,
+            radius_multiplier=1.5,
+            world_size=(1200, 800),
+        ),
+    }
 
     try:
         # Reset environment
@@ -91,26 +111,26 @@ def main():
 
         print("Game started! Fight!")
 
-        episode_reward = {0: 0.0, 1: 0.0}
+        episode_reward = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
         episode_time = 0.0
 
         while True:
             # Get actions
             actions = {}
 
-            # Check if ship 1 is alive by looking at the observation
-            ship_1_alive = False
+            # Check which ships are alive
+            alive_ships = set()
             for ship_idx in range(observation["alive"].shape[0]):
                 ship_id = observation["ship_id"][ship_idx, 0].item()
-                if ship_id == 1 and observation["alive"][ship_idx, 0].item():
-                    ship_1_alive = True
-                    break
+                if observation["alive"][ship_idx, 0].item():
+                    alive_ships.add(ship_id)
 
-            # Scripted agent action for ship 1
-            if ship_1_alive:
-                actions[1] = scripted_agent(observation)
-            else:
-                actions[1] = torch.zeros(len(Actions), dtype=torch.float32)
+            # AI actions for all scripted agents
+            for ship_id, agent in scripted_agents.items():
+                if ship_id in alive_ships:
+                    actions[ship_id] = agent(observation)
+                else:
+                    actions[ship_id] = torch.zeros(len(Actions), dtype=torch.float32)
 
             # Human controls ship 0 (handled by renderer)
             actions[0] = torch.zeros(
@@ -133,21 +153,29 @@ def main():
             if terminated:
                 print("\n" + "=" * 60)
 
-                # Determine winner
+                # Determine winner based on teams
                 ship_states = info.get("ship_states", {})
-                human_alive = ship_states.get(0, {}).get("alive", False)
-                ai_alive = ship_states.get(1, {}).get("alive", False)
+                team_0_alive = (
+                    ship_states.get(0, {}).get("alive", False) or
+                    ship_states.get(1, {}).get("alive", False)
+                )
+                team_1_alive = (
+                    ship_states.get(2, {}).get("alive", False) or
+                    ship_states.get(3, {}).get("alive", False)
+                )
 
-                if human_alive and not ai_alive:
-                    print("🎉 VICTORY! You destroyed the enemy ship!")
-                elif ai_alive and not human_alive:
-                    print("💀 DEFEAT! The enemy destroyed your ship!")
+                if team_0_alive and not team_1_alive:
+                    print("🎉 VICTORY! Team 0 (Your team) wins!")
+                elif team_1_alive and not team_0_alive:
+                    print("💀 DEFEAT! Team 1 (Enemy team) wins!")
                 else:
-                    print("🤝 DRAW! Both ships were destroyed!")
+                    print("🤝 DRAW! Both teams were eliminated!")
 
                 print(f"\nFinal Scores:")
-                print(f"  Human (Ship 0): {episode_reward[0]:.1f}")
-                print(f"  AI (Ship 1): {episode_reward[1]:.1f}")
+                print(f"  Team 0 - Ship 0 (Human): {episode_reward[0]:.1f}")
+                print(f"  Team 0 - Ship 1 (AI): {episode_reward[1]:.1f}")
+                print(f"  Team 1 - Ship 2 (AI): {episode_reward[2]:.1f}")
+                print(f"  Team 1 - Ship 3 (AI): {episode_reward[3]:.1f}")
                 print(f"  Battle Duration: {episode_time:.1f} seconds")
 
                 # Ask to play again
@@ -156,7 +184,7 @@ def main():
                 # Reset for next game
                 observation, info = env.reset(game_mode="2v2")
                 env.add_human_player(ship_id=0)
-                episode_reward = {0: 0.0, 1: 0.0}
+                episode_reward = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
                 episode_time = 0.0
                 print("New game started!")
 

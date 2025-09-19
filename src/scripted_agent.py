@@ -6,14 +6,16 @@ from constants import Actions
 
 class ScriptedAgent(nn.Module):
     """
-    Advanced scripted agent with predictive targeting.
+    Advanced scripted agent with predictive targeting and team awareness.
 
     Features:
     - Calculates bullet travel time based on distance
     - Predicts enemy position when bullet arrives
     - Uses predicted position for both turning and shooting
+    - Only targets ships from opposing teams (no friendly fire)
+    - Targets the closest enemy ship when multiple enemies are present
 
-    This agent is designed to control ship_1 in a 1v1 scenario.
+    This agent works in both 1v1 and team-based scenarios (e.g., 2v2).
     """
 
     def __init__(
@@ -30,7 +32,7 @@ class ScriptedAgent(nn.Module):
         Initialize the scripted agent.
 
         Args:
-            controlled_ship_id: Which ship this agent controls (0 or 1)
+            controlled_ship_id: Which ship this agent controls (any ship ID)
             max_shooting_range: Maximum distance to shoot at enemies (in world units)
             angle_threshold: Fallback angle tolerance in degrees for shooting (used at max range)
             bullet_speed: Speed of bullets (used for travel time calculation)
@@ -63,17 +65,19 @@ class ScriptedAgent(nn.Module):
         # Get the raw observation data from the debug fields
         # We'll use the non-normalized values for easier calculations
 
-        # Extract our ship's state and find enemy
+        # Extract our ship's state and find closest enemy
         our_ship_data = None
-        enemy_ship_data = None
+        our_team_id = None
+        enemy_candidates = []
 
-        # Look through all ships to find ourselves and enemy
+        # Look through all ships to find ourselves and potential enemies
         for ship_id in range(observation["ship_id"].shape[0]):
             ship_alive = observation["alive"][ship_id, 0].item()
             if not ship_alive:
                 continue
 
             current_ship_id = observation["ship_id"][ship_id, 0].item()
+            current_team_id = observation["team_id"][ship_id, 0].item()
 
             if current_ship_id == self.controlled_ship_id:
                 our_ship_data = {
@@ -83,18 +87,53 @@ class ScriptedAgent(nn.Module):
                     "velocity": observation["velocity"][ship_id, 0],
                     "attitude": observation["attitude"][ship_id, 0],
                 }
+                our_team_id = current_team_id
             else:
-                enemy_ship_data = {
+                # Store all potential enemies (ships not on our team)
+                enemy_candidates.append({
+                    "ship_id": current_ship_id,
+                    "team_id": current_team_id,
                     "position": observation["position"][ship_id, 0],
                     "velocity": observation["velocity"][ship_id, 0],
-                }
+                })
+
+        # Find closest enemy ship (only target ships from different team)
+        enemy_ship_data = None
+        if our_ship_data is not None and our_team_id is not None and enemy_candidates:
+            our_pos = torch.tensor(
+                [our_ship_data["position"].real, our_ship_data["position"].imag],
+                device=self._dummy.device,
+            )
+            
+            closest_distance = float('inf')
+            for candidate in enemy_candidates:
+                # Skip allied ships (same team)
+                if candidate["team_id"] == our_team_id:
+                    continue
+                    
+                candidate_pos = torch.tensor(
+                    [candidate["position"].real, candidate["position"].imag],
+                    device=self._dummy.device,
+                )
+                
+                # Calculate distance with world wrapping
+                to_candidate = self._calculate_wrapped_vector(our_pos, candidate_pos)
+                distance = torch.norm(to_candidate).item()
+                
+                # Update closest enemy
+                if distance < closest_distance:
+                    closest_distance = distance
+                    enemy_ship_data = {
+                        "position": candidate["position"],
+                        "velocity": candidate["velocity"],
+                    }
 
         # Initialize action (all zeros)
         action = torch.zeros(
             len(Actions), dtype=torch.float32, device=self._dummy.device
         )
 
-        # Check if we have valid data for both ships
+        # Check if we have valid data for both our ship and an enemy
         if our_ship_data is None or enemy_ship_data is None:
             return action  # Can't act without proper data
 
