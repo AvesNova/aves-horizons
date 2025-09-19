@@ -126,10 +126,17 @@ class TestMultiAgentCompliance:
         # Should return dict of observations
         assert isinstance(obs, dict)
 
-        # Should have observation for each ship
-        assert len(obs) == 2
-        assert 0 in obs
-        assert 1 in obs
+        # Should have observation components for ships
+        expected_keys = {"ship_id", "team_id", "alive", "health", "power", 
+                        "position", "velocity", "speed", "attitude", "is_shooting", "token"}
+        assert set(obs.keys()) == expected_keys
+        
+        # Each component should have data for both ships
+        for key, tensor in obs.items():
+            if key == "token":
+                assert tensor.shape[0] == 2  # 2 ships
+            else:
+                assert tensor.shape[0] == 2  # 2 ships
 
     def test_multi_agent_step(self, basic_env):
         """Test that step accepts and returns multi-agent data."""
@@ -144,9 +151,12 @@ class TestMultiAgentCompliance:
         assert isinstance(obs, dict)
         assert isinstance(rewards, dict)
 
-        # Should have data for each agent
-        assert 0 in obs and 1 in obs
+        # Should have rewards for each agent
         assert 0 in rewards and 1 in rewards
+        
+        # Observations should have tensor structure with data for all ships
+        for key, tensor in obs.items():
+            assert tensor.shape[0] == 2  # Data for both ships
 
     def test_partial_termination(self, basic_env):
         """Test handling of individual agent termination."""
@@ -192,8 +202,9 @@ class TestActionObservationValidation:
 
         obs, _ = basic_env.reset(game_mode="1v1")
 
-        for ship_obs in obs.values():
-            assert obs_space.contains(ship_obs)
+        # Convert to format expected by gym (tokens only)
+        gym_obs = {"tokens": obs["token"].numpy()}
+        assert obs_space.contains(gym_obs)
 
     def test_action_dtype_handling(self, basic_env):
         """Test that different action dtypes are handled."""

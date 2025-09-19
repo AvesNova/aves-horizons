@@ -253,6 +253,9 @@ class Environment(gym.Env):
         """Extract observations for each ship from current state"""
         observations = self._get_empty_observation()
 
+        if not self.state:
+            return observations
+
         current_state = self.state[-1]
 
         for ship_id, ship in current_state.ships.items():

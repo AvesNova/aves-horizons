@@ -42,15 +42,16 @@ def default_ship_config() -> ShipConfig:
 @pytest.fixture
 def minimal_ship_config() -> ShipConfig:
     """Provides a minimal ship config for faster testing."""
+    default_config = ShipConfig()
     return ShipConfig(
-        collision_radius=5.0,
-        max_health=50.0,
-        max_power=50.0,
-        base_thrust=5.0,
-        boost_thrust=40.0,
-        reverse_thrust=-5.0,
-        bullet_lifetime=0.5,
-        firing_cooldown=0.1,
+        collision_radius=default_config.collision_radius / 2,
+        max_health=default_config.max_health / 2,
+        max_power=default_config.max_power / 2,
+        base_thrust=default_config.base_thrust * 0.625,  # 5.0 / 8.0
+        boost_thrust=default_config.boost_thrust * 0.5,
+        reverse_thrust=default_config.reverse_thrust * 0.5,
+        bullet_lifetime=default_config.bullet_lifetime * 0.5,
+        firing_cooldown=default_config.firing_cooldown,
     )
 
 
@@ -72,14 +73,17 @@ def zero_drag_ship_config() -> ShipConfig:
 @pytest.fixture
 def basic_ship(default_ship_config) -> Ship:
     """Creates a basic ship at origin moving right."""
+    # Use relative positions based on a standard world size
+    world_width, world_height = 800, 600
     return Ship(
         ship_id=0,
         team_id=0,
         ship_config=default_ship_config,
-        initial_x=400.0,
-        initial_y=300.0,
-        initial_vx=100.0,
+        initial_x=world_width * 0.5,  # Center x
+        initial_y=world_height * 0.5, # Center y  
+        initial_vx=100.0,  # Standard test velocity
         initial_vy=0.0,
+        world_size=(world_width, world_height),
         rng=np.random.default_rng(42),
     )
 
@@ -89,12 +93,13 @@ def stationary_ship_attempt():
     """Returns a function that attempts to create a stationary ship (should fail)."""
 
     def _create():
+        world_width, world_height = 800, 600
         return Ship(
             ship_id=0,
             team_id=0,
             ship_config=ShipConfig(),
-            initial_x=400.0,
-            initial_y=300.0,
+            initial_x=world_width * 0.5,
+            initial_y=world_height * 0.5,
             initial_vx=0.0,
             initial_vy=0.0,
         )
@@ -105,24 +110,28 @@ def stationary_ship_attempt():
 @pytest.fixture
 def two_ships(default_ship_config) -> tuple[Ship, Ship]:
     """Creates two opposing ships."""
+    # Use relative positions based on a standard world size
+    world_width, world_height = 800, 600
     ship1 = Ship(
         ship_id=0,
         team_id=0,
         ship_config=default_ship_config,
-        initial_x=200.0,
-        initial_y=300.0,
+        initial_x=world_width * 0.25,  # Left quarter
+        initial_y=world_height * 0.5,  # Center y
         initial_vx=100.0,
         initial_vy=0.0,
+        world_size=(world_width, world_height),
         rng=np.random.default_rng(42),
     )
     ship2 = Ship(
         ship_id=1,
         team_id=1,
         ship_config=default_ship_config,
-        initial_x=600.0,
-        initial_y=300.0,
+        initial_x=world_width * 0.75,  # Right quarter
+        initial_y=world_height * 0.5,  # Center y
         initial_vx=-100.0,
         initial_vy=0.0,
+        world_size=(world_width, world_height),
         rng=np.random.default_rng(43),
     )
     return ship1, ship2
