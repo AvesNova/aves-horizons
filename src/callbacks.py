@@ -6,7 +6,6 @@ import numpy as np
 import torch
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
-from typing import Dict, Any
 import wandb
 
 
@@ -90,10 +89,10 @@ class EvalAgainstScriptedCallback(BaseCallback):
 
     def _evaluate_against_scripted(self):
         """Run evaluation against scripted agents"""
-        from team_env_wrapper import TeamEnvironmentWrapper
+        from rl_wrapper import UnifiedRLWrapper
 
         # Create evaluation environment (vs scripted only)
-        eval_env = TeamEnvironmentWrapper(
+        eval_env = UnifiedRLWrapper(
             env_config={
                 "world_size": (1200, 800),
                 "max_ships": 4,
