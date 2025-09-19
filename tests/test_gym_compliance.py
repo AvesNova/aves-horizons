@@ -151,8 +151,8 @@ class TestMultiAgentCompliance:
         assert isinstance(obs, dict)
         assert isinstance(rewards, dict)
 
-        # Should have rewards for each agent
-        assert 0 in rewards and 1 in rewards
+        # Environment returns empty rewards dict - wrapper handles team rewards
+        assert len(rewards) == 0
         
         # Observations should have tensor structure with data for all ships
         for key, tensor in obs.items():

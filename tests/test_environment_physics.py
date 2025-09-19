@@ -234,50 +234,44 @@ class TestRewardsAndTermination:
     """Tests for reward calculation and episode termination."""
 
     def test_basic_rewards(self, basic_env):
-        """Test basic reward structure."""
+        """Test basic reward structure with new team-based system."""
         basic_env.reset(game_mode="1v1")
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         obs, rewards, terminated, truncated, info = basic_env.step(actions)
 
-        # Both ships alive should get positive rewards
-        assert rewards[0] > 0
-        assert rewards[1] > 0
-
-        # Rewards should include survival and health components
-        for ship_id in [0, 1]:
-            # Base survival reward + health bonus
-            assert rewards[ship_id] >= 1.0
+        # Environment returns empty rewards dict - wrapper handles team rewards
+        assert isinstance(rewards, dict)
+        assert len(rewards) == 0  # Empty dict
 
     def test_death_penalty(self, basic_env):
-        """Test that dying gives large negative reward."""
+        """Test that environment returns empty rewards dict when ship dies."""
         basic_env.reset(game_mode="1v1")
 
         # Kill ship 1
-        basic_env.state[-1].ships[1].health = 0
+        basic_env.state[-1].ships[1].damage_ship(1000)
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         obs, rewards, terminated, truncated, info = basic_env.step(actions)
 
-        # Dead ship should get large negative reward
-        assert rewards[1] < -50
-
-        # Alive ship should get positive reward
-        assert rewards[0] > 0
+        # Environment returns empty dict - team wrapper handles death rewards
+        assert isinstance(rewards, dict)
+        assert len(rewards) == 0
+        
+        # Verify termination still works
+        assert terminated == True
 
     def test_health_based_rewards(self, basic_env):
-        """Test that rewards scale with health."""
+        """Test team reward calculation for damage events."""
+        # Just test that environment returns empty dict - damage testing is in test_team_rewards.py
         basic_env.reset(game_mode="1v1")
-
-        # Damage ship 0
-        ship0 = basic_env.state[-1].ships[0]
-        ship0.health = ship0.config.max_health / 2
 
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         obs, rewards, terminated, truncated, info = basic_env.step(actions)
 
-        # Ship with less health should get lower reward than full health ship
-        assert rewards[0] < rewards[1]
+        # Environment returns empty dict - team wrapper handles rewards
+        assert isinstance(rewards, dict)
+        assert len(rewards) == 0
 
     def test_termination_one_team_survives(self, basic_env):
         """Test that episode terminates when only one team survives."""

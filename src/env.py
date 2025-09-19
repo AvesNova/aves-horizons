@@ -160,22 +160,38 @@ class Environment(gym.Env):
                 for idx in reversed(sorted(hit_indices)):
                     bullets.remove_bullet(idx)
 
-    def _calculate_rewards(self, state: State) -> dict[int, float]:
-        """Calculate basic rewards for each ship"""
-        rewards = {}
-
-        for ship_id, ship in state.ships.items():
-            reward = 0.0
-
-            if ship.alive:
-                reward += 1.0
-            else:
-                reward -= 100.0
-
-            reward += (ship.health / ship.config.max_health) * 0.5
-            rewards[ship_id] = reward
-
-        return rewards
+    def _calculate_team_reward(self, current_state: State, team_id: int) -> float:
+        """Calculate reward for a specific team"""
+        team_reward = 0.0
+        
+        if len(self.state) < 2:
+            return team_reward
+        
+        previous_state = self.state[-2]  # Use existing state memory
+        
+        for ship_id, current_ship in current_state.ships.items():
+            if ship_id not in previous_state.ships:
+                continue
+                
+            previous_ship = previous_state.ships[ship_id]
+            
+            # Death events
+            if previous_ship.alive and not current_ship.alive:
+                if current_ship.team_id == team_id:
+                    team_reward -= 1.0  # Our ship died
+                else:
+                    team_reward += 1.0  # Enemy ship died
+            
+            # Damage events (only for ships that are still alive)
+            elif previous_ship.alive and current_ship.alive:
+                damage_taken = previous_ship.health - current_ship.health
+                if damage_taken > 0:
+                    if current_ship.team_id == team_id:
+                        team_reward -= 0.01 * damage_taken  # Our ship took damage
+                    else:
+                        team_reward += 0.01 * damage_taken  # Enemy took damage
+        
+        return team_reward
 
     def _check_termination(self, state: State) -> tuple[bool, dict[int, bool]]:
         """Check if episode should terminate and which agents are done"""
@@ -223,8 +239,7 @@ class Environment(gym.Env):
         # Save final state
         self.state.append(current_state)
 
-        # Calculate rewards and termination
-        rewards = self._calculate_rewards(current_state)
+        # Calculate termination
         terminated, done = self._check_termination(current_state)
 
         info = {
@@ -241,7 +256,8 @@ class Environment(gym.Env):
         if self.render_mode == "human":
             info["human_controlled"] = list(self.renderer.human_ship_ids)
 
-        return self.get_observation(), rewards, terminated, False, info
+        # Return empty rewards dict - let wrapper handle team rewards
+        return self.get_observation(), {}, terminated, False, info
 
     def close(self):
         """Clean up resources"""

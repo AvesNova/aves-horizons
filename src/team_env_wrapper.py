@@ -277,11 +277,11 @@ class TeamEnvironmentWrapper(gym.Env):
         return observation, info
 
     def step(self, action):
-        """Step environment with team-based actions"""
+        """Step environment with simplified team reward calculation"""
         # Convert SB3 action to team actions
         team_actions = self._unflatten_actions(action)
 
-        # Get current observation for opponent actions
+        # Get opponent actions (existing code works fine)
         obs_dict = self.base_env.get_observation()
         observation = obs_dict["tokens"].numpy()
         opponent_actions = self._get_opponent_actions(observation)
@@ -290,10 +290,11 @@ class TeamEnvironmentWrapper(gym.Env):
         all_actions = {**team_actions, **opponent_actions}
 
         # Step environment
-        obs_dict, rewards, terminated, truncated, info = self.base_env.step(all_actions)
+        obs_dict, _, terminated, truncated, info = self.base_env.step(all_actions)
 
-        # Calculate team reward (sum of controlled ships)
-        team_reward = sum(rewards.get(ship_id, 0) for ship_id in self.controlled_ships)
+        # Calculate team reward directly from environment  
+        current_state = self.base_env.state[-1]
+        team_reward = self.base_env._calculate_team_reward(current_state, self.team_id)
 
         # Track wins/losses
         if terminated:
