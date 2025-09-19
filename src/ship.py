@@ -15,7 +15,7 @@ class ShipConfig:
     max_power: float = 100.0
 
     # Thrust System Parameters
-    base_thrust: float = 10.0
+    base_thrust: float = 8.0
     boost_thrust: float = 80.0
     reverse_thrust: float = -10.0
     base_power_gain: float = 10.0
@@ -25,11 +25,11 @@ class ShipConfig:
     # Aerodynamic Parameters
     no_turn_drag_coeff: float = 8e-4
     normal_turn_angle: float = np.deg2rad(5.0)
-    normal_turn_drag_coeff: float = 1e-3
+    normal_turn_drag_coeff: float = 1.2e-3
     normal_turn_lift_coeff: float = 15e-3
     sharp_turn_angle: float = np.deg2rad(15.0)
-    sharp_turn_drag_coeff: float = 3e-3
-    sharp_turn_lift_coeff: float = 30e-3
+    sharp_turn_drag_coeff: float = 5.0e-3
+    sharp_turn_lift_coeff: float = 27e-3
 
     # Bullet System Parameters
     bullet_speed: float = 500.0

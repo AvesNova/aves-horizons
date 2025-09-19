@@ -1,16 +1,16 @@
 ship_parameters:
   max_speed: 177.94000244140625
-  equilibrium_speed: 111.08000183105469
+  equilibrium_speed: 100.0
   normal_turn:
-    angular_speed_rad_per_s: 1.785
-    turn_radius: 58.26
-    circle_time_s: 3.52
-    stable_speed: 114.54000091552734
+    angular_speed_rad_per_s: 1.4088
+    turn_radius: 49.97
+    circle_time_s: 4.46
+    stable_speed: 90.97000122070312
   sharp_turn:
-    angular_speed_rad_per_s: 2.0138
-    turn_radius: 30.66
-    circle_time_s: 3.12
-    stable_speed: 64.16000366210938
+    angular_speed_rad_per_s: 1.19
+    turn_radius: 23.4
+    circle_time_s: 5.28
+    stable_speed: 41.13999938964844
 measurement_info:
   timestep: 0.02
   world_bounds:
