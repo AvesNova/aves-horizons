@@ -84,7 +84,7 @@ def main():
 
     try:
         # Reset environment
-        observation, info = env.reset(game_mode="1v1")
+        observation, info = env.reset(game_mode="2v2")
 
         # Add human control for ship 0
         env.add_human_player(ship_id=0)
@@ -154,7 +154,7 @@ def main():
                 print("\nPress any key to play again, or close window to quit...")
 
                 # Reset for next game
-                observation, info = env.reset(game_mode="1v1")
+                observation, info = env.reset(game_mode="2v2")
                 env.add_human_player(ship_id=0)
                 episode_reward = {0: 0.0, 1: 0.0}
                 episode_time = 0.0

@@ -21,6 +21,7 @@ class Environment(gym.Env):
         max_ships: int = 2,
         agent_dt: float = 0.02,
         physics_dt: float = 0.02,
+        rng: np.random.Generator = np.random.default_rng(),
     ):
         super().__init__()
 
@@ -31,6 +32,7 @@ class Environment(gym.Env):
         self.agent_dt = agent_dt
         self.physics_dt = physics_dt
         self.target_fps = 1 / physics_dt
+        self.rng = rng
 
         assert (
             agent_dt / physics_dt
@@ -89,12 +91,91 @@ class Environment(gym.Env):
         ships = {0: ship_0, 1: ship_1}
         return State(ships=ships)
 
+    @staticmethod
+    def fractal_ship_positions(level):
+        # Base shape (a1) as complex numbers
+        base = np.array([0j, 1 - 1j, -1 - 1j, -2 - 2j], dtype=np.complex128)
+        if level == 0:
+            return np.array([0j], dtype=np.complex128)
+        if level == 1:
+            return base
+
+        prev = Environment.fractal_ship_positions(level - 1)
+        size = 4 ** (level - 1)
+        shift = int(np.sqrt(size) * 2)
+
+        offsets = np.array(
+            [0, shift - shift * 1j, -shift - shift * 1j, 2 * shift - 2 * shift * 1j],
+            dtype=np.complex128,
+        )
+        result = np.concatenate([prev + off for off in offsets])
+        return result
+
+    @staticmethod
+    def get_ship_positions(n):
+        if n <= 1:
+            return np.array([0j], dtype=np.complex128)
+        # find minimal level with enough points
+        level = int(np.ceil(np.log(n) / np.log(4)))
+        seq = Environment.fractal_ship_positions(level)
+        return seq[:n]
+
+    def create_squad(self, team_id: int, n_ships: int, ship_id_offset: int) -> dict:
+        origin = self.rng.uniform(0, self.world_size[0]) + 1j * self.rng.uniform(
+            0, self.world_size[1]
+        )
+        attitude = np.exp(1j * self.rng.uniform(0, 2 * np.pi))
+        velocity = attitude * 100.0
+
+        offsets = (
+            self.get_ship_positions(n_ships)
+            * attitude
+            * default_ship_config.collision_radius
+            * 2
+        )
+
+        positions = offsets + origin
+
+        ships = {}
+        for i, position in enumerate(positions):
+            ships[i + ship_id_offset] = Ship(
+                ship_id=i + ship_id_offset,
+                team_id=team_id,
+                ship_config=default_ship_config,
+                initial_x=position.real,
+                initial_y=position.imag,
+                initial_vx=velocity.real,
+                initial_vy=velocity.imag,
+                world_size=self.world_size,
+            )
+
+        return ships
+
+    def n_vs_n_reset(self, ships_per_team: int | None) -> State:
+        if ships_per_team is None:
+            ships_per_team = self.rng.integers(
+                1, int(self.max_ships / 2), endpoint=True
+            )
+
+        team_0 = self.create_squad(team_id=0, n_ships=ships_per_team, ship_id_offset=0)
+        team_1 = self.create_squad(
+            team_id=1, n_ships=ships_per_team, ship_id_offset=ships_per_team
+        )
+        ships = team_0 | team_1
+        return State(ships=ships)
+
     def reset(self, game_mode: str = "1v1") -> tuple[dict, dict]:
         self.current_time = 0.0
         self.state.clear()
 
         if game_mode == "1v1":
             self.state.append(self.one_vs_one_reset())
+        elif game_mode == "2v2":
+            self.state.append(self.n_vs_n_reset(ships_per_team=2))
+        elif game_mode == "4v4":
+            self.state.append(self.n_vs_n_reset(ships_per_team=4))
+        elif game_mode == "nvn":
+            self.state.append(self.n_vs_n_reset(ships_per_team=None))
         else:
             raise ValueError(f"Unknown game mode: {game_mode}")
 
@@ -163,25 +244,25 @@ class Environment(gym.Env):
     def _calculate_team_reward(self, current_state: State, team_id: int) -> float:
         """Calculate reward for a specific team"""
         team_reward = 0.0
-        
+
         if len(self.state) < 2:
             return team_reward
-        
+
         previous_state = self.state[-2]  # Use existing state memory
-        
+
         for ship_id, current_ship in current_state.ships.items():
             if ship_id not in previous_state.ships:
                 continue
-                
+
             previous_ship = previous_state.ships[ship_id]
-            
+
             # Death events
             if previous_ship.alive and not current_ship.alive:
                 if current_ship.team_id == team_id:
                     team_reward -= 1.0  # Our ship died
                 else:
                     team_reward += 1.0  # Enemy ship died
-            
+
             # Damage events (only for ships that are still alive)
             elif previous_ship.alive and current_ship.alive:
                 damage_taken = previous_ship.health - current_ship.health
@@ -190,7 +271,7 @@ class Environment(gym.Env):
                         team_reward -= 0.01 * damage_taken  # Our ship took damage
                     else:
                         team_reward += 0.01 * damage_taken  # Enemy took damage
-        
+
         return team_reward
 
     def _check_termination(self, state: State) -> tuple[bool, dict[int, bool]]:
@@ -285,7 +366,7 @@ class Environment(gym.Env):
 
         # Create tokens matrix for transformer model
         observations["tokens"] = observations["token"]
-        
+
         return observations
 
     def _get_empty_observation(self) -> dict:
