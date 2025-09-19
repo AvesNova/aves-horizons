@@ -157,7 +157,7 @@ def basic_env() -> Environment:
         render_mode=None,
         world_size=(800, 600),
         memory_size=1,
-        n_ships=2,
+        max_ships=2,
         agent_dt=0.02,
         physics_dt=0.02,
     )
@@ -170,7 +170,7 @@ def env_with_substeps() -> Environment:
         render_mode=None,
         world_size=(800, 600),
         memory_size=1,
-        n_ships=2,
+        max_ships=2,
         agent_dt=0.04,  # 2x physics_dt
         physics_dt=0.02,
     )

@@ -1,11 +1,3 @@
-"""
-Scripted agent for controlling ship_1 in 1v1 combat.
-
-The agent implements a simple strategy:
-1. Turn towards the nearest enemy
-2. Shoot if looking within 3 degrees of the enemy and in range
-"""
-
 import torch
 import torch.nn as nn
 import numpy as np
@@ -26,28 +18,34 @@ class ScriptedAgent(nn.Module):
 
     def __init__(
         self,
+        controlled_ship_id: int = 1,
         max_shooting_range: float = 400.0,
         angle_threshold: float = 6.0,
         bullet_speed: float = 500.0,
         target_radius: float = 10.0,
         radius_multiplier: float = 1.5,
+        world_size: tuple[float, float] = (1200, 800),
     ):
         """
         Initialize the scripted agent.
 
         Args:
+            controlled_ship_id: Which ship this agent controls (0 or 1)
             max_shooting_range: Maximum distance to shoot at enemies (in world units)
             angle_threshold: Fallback angle tolerance in degrees for shooting (used at max range)
             bullet_speed: Speed of bullets (used for travel time calculation)
             target_radius: Collision radius of enemy ships (in world units)
             radius_multiplier: Multiplier for angular size calculation (1.5 = shoot within 1.5 radii)
+            world_size: Size of the world (width, height)
         """
         super().__init__()
+        self.controlled_ship_id = controlled_ship_id
         self.max_shooting_range = max_shooting_range
         self.angle_threshold = np.deg2rad(angle_threshold)  # Convert to radians
         self.bullet_speed = bullet_speed
         self.target_radius = target_radius
         self.radius_multiplier = radius_multiplier
+        self.world_size = world_size
 
         # Register as buffer so it moves with device but isn't a parameter
         self.register_buffer("_dummy", torch.zeros(1))
@@ -57,74 +55,81 @@ class ScriptedAgent(nn.Module):
         Generate action based on observation.
 
         Args:
-            observation: Dictionary containing observation for ship_1
+            observation: Dictionary containing tokens for all ships
 
         Returns:
             action: Tensor of shape (6,) with binary actions [forward, backward, left, right, sharp_turn, shoot]
         """
-        # Extract relevant information from observation
-        self_state = observation[
-            "self_state"
-        ]  # [x, y, vx, vy, health, power, attitude_x, attitude_y]
-        enemy_state = observation["enemy_state"]  # Same format as self_state
-        world_bounds = observation["world_bounds"]  # [world_width, world_height]
+        # Get the raw observation data from the debug fields
+        # We'll use the non-normalized values for easier calculations
+
+        # Extract our ship's state and find enemy
+        our_ship_data = None
+        enemy_ship_data = None
+
+        # Look through all ships to find ourselves and enemy
+        for ship_id in range(observation["ship_id"].shape[0]):
+            ship_alive = observation["alive"][ship_id, 0].item()
+            if not ship_alive:
+                continue
+
+            current_ship_id = observation["ship_id"][ship_id, 0].item()
+
+            if current_ship_id == self.controlled_ship_id:
+                our_ship_data = {
+                    "health": observation["health"][ship_id, 0].item(),
+                    "power": observation["power"][ship_id, 0].item(),
+                    "position": observation["position"][ship_id, 0],
+                    "velocity": observation["velocity"][ship_id, 0],
+                    "attitude": observation["attitude"][ship_id, 0],
+                }
+            else:
+                enemy_ship_data = {
+                    "position": observation["position"][ship_id, 0],
+                    "velocity": observation["velocity"][ship_id, 0],
+                }
 
         # Initialize action (all zeros)
         action = torch.zeros(
             len(Actions), dtype=torch.float32, device=self._dummy.device
         )
 
-        # Check if enemy is alive/visible (non-zero health)
-        enemy_health = enemy_state[4]
-        if enemy_health <= 0:
-            return action  # No enemy to target
+        # Check if we have valid data for both ships
+        if our_ship_data is None or enemy_ship_data is None:
+            return action  # Can't act without proper data
 
-        # Get positions in world coordinates
+        # Convert complex numbers to 2D vectors for easier calculation
         self_pos = torch.tensor(
-            [
-                self_state[0] * world_bounds[0],  # Denormalize x
-                self_state[1] * world_bounds[1],  # Denormalize y
-            ],
+            [our_ship_data["position"].real, our_ship_data["position"].imag],
             device=self._dummy.device,
         )
 
         enemy_pos = torch.tensor(
-            [
-                enemy_state[0] * world_bounds[0],  # Denormalize x
-                enemy_state[1] * world_bounds[1],  # Denormalize y
-            ],
+            [enemy_ship_data["position"].real, enemy_ship_data["position"].imag],
             device=self._dummy.device,
         )
 
-        # Get enemy velocity (denormalized)
         enemy_velocity = torch.tensor(
-            [
-                enemy_state[2] * 1000.0,  # Denormalize vx
-                enemy_state[3] * 1000.0,  # Denormalize vy
-            ],
+            [enemy_ship_data["velocity"].real, enemy_ship_data["velocity"].imag],
+            device=self._dummy.device,
+        )
+
+        self_attitude = torch.tensor(
+            [our_ship_data["attitude"].real, our_ship_data["attitude"].imag],
             device=self._dummy.device,
         )
 
         # Calculate predicted enemy position when bullet arrives
         predicted_enemy_pos = self._calculate_predicted_position(
-            self_pos, enemy_pos, enemy_velocity, world_bounds
-        )
-
-        # Get current attitude (ship's facing direction)
-        self_attitude = torch.tensor(
-            [self_state[6], self_state[7]], device=self._dummy.device
+            self_pos, enemy_pos, enemy_velocity
         )
 
         # Calculate vector to PREDICTED enemy position (accounting for toroidal world wrapping)
-        to_target = self._calculate_wrapped_vector(
-            self_pos, predicted_enemy_pos, world_bounds
-        )
+        to_target = self._calculate_wrapped_vector(self_pos, predicted_enemy_pos)
         distance_to_target = torch.norm(to_target)
 
         # Also calculate distance to current enemy position for range checking
-        to_enemy_current = self._calculate_wrapped_vector(
-            self_pos, enemy_pos, world_bounds
-        )
+        to_enemy_current = self._calculate_wrapped_vector(self_pos, enemy_pos)
         current_distance = torch.norm(to_enemy_current)
 
         if distance_to_target < 1e-6:  # Avoid division by zero
@@ -168,7 +173,7 @@ class ScriptedAgent(nn.Module):
         if (
             angle_to_target <= dynamic_shooting_threshold
             and current_distance <= self.max_shooting_range
-            and self_state[4] > 0
+            and our_ship_data["health"] > 0
         ):  # Only shoot if we're alive
             action[Actions.shoot] = 1.0
 
@@ -182,17 +187,15 @@ class ScriptedAgent(nn.Module):
             action[Actions.backward] = 1.0
         else:
             # Normal range: only boost (forward) if power > 80%, otherwise maintain base thrust
-            current_power = self_state[
-                5
-            ]  # Power is normalized [0,1], so 0.6 = 80% = 80 power units
-            if current_power > 0.8:
+            current_power_ratio = our_ship_data["power"] / 100.0  # Normalize to [0,1]
+            if current_power_ratio > 0.8:
                 action[Actions.forward] = 1.0
-            # Note: When power <= 0.8, we don't set forward=1, so ship uses base thrust only
+            # Note: When power <= 80%, we don't set forward=1, so ship uses base thrust only
 
         return action
 
     def _calculate_wrapped_vector(
-        self, pos1: torch.Tensor, pos2: torch.Tensor, world_bounds: torch.Tensor
+        self, pos1: torch.Tensor, pos2: torch.Tensor
     ) -> torch.Tensor:
         """
         Calculate the shortest vector from pos1 to pos2 in a toroidal world.
@@ -200,7 +203,6 @@ class ScriptedAgent(nn.Module):
         Args:
             pos1: Position 1 [x, y]
             pos2: Position 2 [x, y]
-            world_bounds: World size [width, height]
 
         Returns:
             Vector from pos1 to pos2 considering wrapping
@@ -210,7 +212,7 @@ class ScriptedAgent(nn.Module):
 
         # Handle wrapping for each dimension
         for i in range(2):
-            world_size = world_bounds[i]
+            world_size = self.world_size[i]
 
             # If distance is more than half the world size, wrap around
             if abs(diff[i]) > world_size / 2:
@@ -226,7 +228,6 @@ class ScriptedAgent(nn.Module):
         self_pos: torch.Tensor,
         enemy_pos: torch.Tensor,
         enemy_velocity: torch.Tensor,
-        world_bounds: torch.Tensor,
     ) -> torch.Tensor:
         """
         Calculate where the enemy will be when a bullet fired now reaches them.
@@ -234,14 +235,13 @@ class ScriptedAgent(nn.Module):
         Args:
             self_pos: Our current position [x, y]
             enemy_pos: Enemy's current position [x, y]
-            enemy_velocity: Enemy's velocity [vx, vy] (already denormalized)
-            world_bounds: World size [width, height]
+            enemy_velocity: Enemy's velocity [vx, vy] (already in world units)
 
         Returns:
             Predicted enemy position [x, y] accounting for toroidal wrapping
         """
         # Calculate current distance to enemy (accounting for wrapping)
-        to_enemy = self._calculate_wrapped_vector(self_pos, enemy_pos, world_bounds)
+        to_enemy = self._calculate_wrapped_vector(self_pos, enemy_pos)
         current_distance = torch.norm(to_enemy)
 
         if current_distance < 1e-6:
@@ -255,8 +255,8 @@ class ScriptedAgent(nn.Module):
         predicted_pos = enemy_pos + predicted_displacement
 
         # Apply world wrapping to predicted position
-        predicted_pos[0] = predicted_pos[0] % world_bounds[0]  # Wrap x
-        predicted_pos[1] = predicted_pos[1] % world_bounds[1]  # Wrap y
+        predicted_pos[0] = predicted_pos[0] % self.world_size[0]  # Wrap x
+        predicted_pos[1] = predicted_pos[1] % self.world_size[1]  # Wrap y
 
         return predicted_pos
 

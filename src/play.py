@@ -66,18 +66,20 @@ def main():
         render_mode="human",
         world_size=(1200, 800),
         memory_size=1,
-        n_ships=2,
+        max_ships=2,
         agent_dt=0.04,
         physics_dt=0.02,
     )
 
     # Create enhanced scripted agent for ship 1 with predictive targeting and dynamic shooting angles
     scripted_agent = ScriptedAgent(
+        controlled_ship_id=1,  # Controls ship 1
         max_shooting_range=500.0,
         angle_threshold=5.0,  # For turning precision
         bullet_speed=500.0,
         target_radius=10.0,  # Ship collision radius
         radius_multiplier=1.5,  # Shoot within 1.5 target radii
+        world_size=(1200, 800),  # Match environment world size
     )
 
     try:
@@ -96,19 +98,17 @@ def main():
             # Get actions
             actions = {}
 
+            # Check if ship 1 is alive by looking at the observation
+            ship_1_alive = False
+            for ship_idx in range(observation["alive"].shape[0]):
+                ship_id = observation["ship_id"][ship_idx, 0].item()
+                if ship_id == 1 and observation["alive"][ship_idx, 0].item():
+                    ship_1_alive = True
+                    break
+
             # Scripted agent action for ship 1
-            if (
-                1 in observation and observation[1]["self_state"][4] > 0
-            ):  # If ship_1 is alive
-                # Convert numpy arrays to tensors for the agent
-                obs_tensors = {
-                    "self_state": torch.from_numpy(observation[1]["self_state"]),
-                    "enemy_state": torch.from_numpy(observation[1]["enemy_state"]),
-                    "bullets": torch.from_numpy(observation[1]["bullets"]),
-                    "world_bounds": torch.from_numpy(observation[1]["world_bounds"]),
-                    "time": observation[1]["time"],
-                }
-                actions[1] = scripted_agent(obs_tensors)
+            if ship_1_alive:
+                actions[1] = scripted_agent(observation)
             else:
                 actions[1] = torch.zeros(len(Actions), dtype=torch.float32)
 

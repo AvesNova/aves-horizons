@@ -18,7 +18,7 @@ class Environment(gym.Env):
         render_mode: str | None = None,
         world_size: tuple[int, int] = (1200, 800),
         memory_size: int = 1,
-        n_ships: int = 2,
+        max_ships: int = 2,
         agent_dt: float = 0.02,
         physics_dt: float = 0.02,
     ):
@@ -27,7 +27,7 @@ class Environment(gym.Env):
         self.render_mode = render_mode
         self.world_size = world_size
         self.memory_size = memory_size
-        self.n_ships = n_ships
+        self.max_ships = max_ships
         self.agent_dt = agent_dt
         self.physics_dt = physics_dt
         self.target_fps = 1 / physics_dt
@@ -251,109 +251,31 @@ class Environment(gym.Env):
 
     def get_observation(self) -> dict:
         """Extract observations for each ship from current state"""
-        if not self.state:
-            # Return empty observations if no state
-            return {
-                ship_id: self._get_empty_observation()
-                for ship_id in range(self.n_ships)
-            }
+        observations = self._get_empty_observation()
 
         current_state = self.state[-1]
-        observations = {}
 
         for ship_id, ship in current_state.ships.items():
-            observations[ship_id] = self._get_ship_observation(ship_id, current_state)
+            local_obs = ship.get_state()
+            for key, value in local_obs.items():
+                observations[key][ship_id, :] = torch.tensor(value)
 
         return observations
 
     def _get_empty_observation(self) -> dict:
         """Empty observation for reset state"""
         return {
-            "self_state": np.zeros(
-                8, dtype=np.float32
-            ),  # [x, y, vx, vy, health, power, attitude_x, attitude_y]
-            "enemy_state": np.zeros(8, dtype=np.float32),
-            "bullets": np.zeros(
-                (20, 6), dtype=np.float32
-            ),  # Max 20 visible bullets: [x, y, vx, vy, time_left, is_enemy]
-            "world_bounds": np.array(self.world_size, dtype=np.float32),
-            "time": 0.0,
-        }
-
-    def _get_ship_observation(self, ship_id: int, state: State) -> dict:
-        """Get observation for a specific ship"""
-        ship = state.ships[ship_id]
-
-        # Self state: position, velocity, health, power, attitude
-        self_state = np.array(
-            [
-                ship.position.real / self.world_size[0],  # Normalize to [0,1]
-                ship.position.imag / self.world_size[1],
-                ship.velocity.real / 1000.0,  # Normalize velocity
-                ship.velocity.imag / 1000.0,
-                ship.health / ship.config.max_health,  # Health ratio
-                ship.power / ship.config.max_power,  # Power ratio
-                ship.attitude.real,  # Attitude unit vector
-                ship.attitude.imag,
-            ],
-            dtype=np.float32,
-        )
-
-        # Enemy state (find the first enemy ship)
-        enemy_state = np.zeros(8, dtype=np.float32)
-        for enemy_id, enemy_ship in state.ships.items():
-            if enemy_id != ship_id and enemy_ship.team_id != ship.team_id:
-                if enemy_ship.alive:
-                    enemy_state = np.array(
-                        [
-                            enemy_ship.position.real / self.world_size[0],
-                            enemy_ship.position.imag / self.world_size[1],
-                            enemy_ship.velocity.real / 1000.0,
-                            enemy_ship.velocity.imag / 1000.0,
-                            enemy_ship.health / enemy_ship.config.max_health,
-                            enemy_ship.power / enemy_ship.config.max_power,
-                            enemy_ship.attitude.real,
-                            enemy_ship.attitude.imag,
-                        ],
-                        dtype=np.float32,
-                    )
-                break
-
-        # Bullet observations (relative to this ship)
-        bullets = np.zeros((20, 6), dtype=np.float32)  # Max 20 bullets
-        if state.bullets.num_active > 0:
-            bx, by, bullet_ship_ids = state.bullets.get_active_positions()
-
-            # Calculate distances to sort by closest
-            dx = bx - ship.position.real
-            dy = by - ship.position.imag
-            distances_sq = dx * dx + dy * dy
-
-            # Sort by distance, take closest 20
-            if len(distances_sq) > 0:
-                closest_indices = np.argsort(distances_sq)[:20]
-
-                for i, bullet_idx in enumerate(closest_indices):
-                    if i >= 20:
-                        break
-
-                    bullets[i] = [
-                        dx[bullet_idx] / self.world_size[0],  # Relative x
-                        dy[bullet_idx] / self.world_size[1],  # Relative y
-                        state.bullets.vx[bullet_idx] / 1000.0,  # Velocity x
-                        state.bullets.vy[bullet_idx] / 1000.0,  # Velocity y
-                        state.bullets.time_remaining[bullet_idx],  # Time left
-                        (
-                            1.0 if bullet_ship_ids[bullet_idx] != ship_id else 0.0
-                        ),  # Is enemy bullet
-                    ]
-
-        return {
-            "self_state": self_state,
-            "enemy_state": enemy_state,
-            "bullets": bullets,
-            "world_bounds": np.array(self.world_size, dtype=np.float32),
-            "time": self.current_time,
+            "ship_id": torch.zeros((self.max_ships, 1), dtype=torch.int64),
+            "team_id": torch.zeros((self.max_ships, 1), dtype=torch.int64),
+            "alive": torch.zeros((self.max_ships, 1), dtype=torch.int64),
+            "health": torch.zeros((self.max_ships, 1), dtype=torch.int64),
+            "power": torch.zeros((self.max_ships, 1), dtype=torch.float32),
+            "position": torch.zeros((self.max_ships, 1), dtype=torch.complex64),
+            "velocity": torch.zeros((self.max_ships, 1), dtype=torch.complex64),
+            "speed": torch.zeros((self.max_ships, 1), dtype=torch.float32),
+            "attitude": torch.zeros((self.max_ships, 1), dtype=torch.complex64),
+            "is_shooting": torch.zeros((self.max_ships, 1), dtype=torch.int64),
+            "token": torch.zeros((self.max_ships, 10), dtype=torch.float32),
         }
 
     @property
@@ -367,18 +289,11 @@ class Environment(gym.Env):
         """Define the observation space for each ship"""
         return spaces.Dict(
             {
-                "self_state": spaces.Box(
-                    low=-1.0, high=1.0, shape=(8,), dtype=np.float32
-                ),
-                "enemy_state": spaces.Box(
-                    low=-1.0, high=1.0, shape=(8,), dtype=np.float32
-                ),
-                "bullets": spaces.Box(
-                    low=-1.0, high=1.0, shape=(20, 6), dtype=np.float32
-                ),
-                "world_bounds": spaces.Box(
-                    low=0, high=10000, shape=(2,), dtype=np.float32
-                ),
-                "time": spaces.Box(low=0, high=np.inf, shape=(), dtype=np.float32),
+                "tokens": spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=(self.max_ships, 10),
+                    dtype=np.float32,
+                )
             }
         )
