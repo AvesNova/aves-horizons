@@ -90,12 +90,14 @@ class ScriptedAgent(nn.Module):
                 our_team_id = current_team_id
             else:
                 # Store all potential enemies (ships not on our team)
-                enemy_candidates.append({
-                    "ship_id": current_ship_id,
-                    "team_id": current_team_id,
-                    "position": observation["position"][ship_id, 0],
-                    "velocity": observation["velocity"][ship_id, 0],
-                })
+                enemy_candidates.append(
+                    {
+                        "ship_id": current_ship_id,
+                        "team_id": current_team_id,
+                        "position": observation["position"][ship_id, 0],
+                        "velocity": observation["velocity"][ship_id, 0],
+                    }
+                )
 
         # Find closest enemy ship (only target ships from different team)
         enemy_ship_data = None
@@ -104,22 +106,22 @@ class ScriptedAgent(nn.Module):
                 [our_ship_data["position"].real, our_ship_data["position"].imag],
                 device=self._dummy.device,
             )
-            
-            closest_distance = float('inf')
+
+            closest_distance = float("inf")
             for candidate in enemy_candidates:
                 # Skip allied ships (same team)
                 if candidate["team_id"] == our_team_id:
                     continue
-                    
+
                 candidate_pos = torch.tensor(
                     [candidate["position"].real, candidate["position"].imag],
                     device=self._dummy.device,
                 )
-                
+
                 # Calculate distance with world wrapping
                 to_candidate = self._calculate_wrapped_vector(our_pos, candidate_pos)
                 distance = torch.norm(to_candidate).item()
-                
+
                 # Update closest enemy
                 if distance < closest_distance:
                     closest_distance = distance
@@ -208,10 +210,13 @@ class ScriptedAgent(nn.Module):
             current_distance
         )
 
+        current_power_ratio = our_ship_data["power"] / 100.0  # Normalize to [0,1]
+
         # Shoot if aligned with predicted target and current enemy is in range
         if (
             angle_to_target <= dynamic_shooting_threshold
-            and current_distance <= self.max_shooting_range
+            and current_distance
+            <= self.max_shooting_range * np.sqrt(current_power_ratio)
             and our_ship_data["health"] > 0
         ):  # Only shoot if we're alive
             action[Actions.shoot] = 1.0
@@ -225,11 +230,12 @@ class ScriptedAgent(nn.Module):
             # Close range: use reverse thrust to maintain distance, regardless of power level
             action[Actions.backward] = 1.0
         else:
-            # Normal range: only boost (forward) if power > 80%, otherwise maintain base thrust
-            current_power_ratio = our_ship_data["power"] / 100.0  # Normalize to [0,1]
-            if current_power_ratio > 0.8:
+            # Normal range: only boost (forward) if power > 90%, otherwise maintain base thrust
+            if current_power_ratio > 0.9 * (
+                1.0 - current_distance / self.max_shooting_range
+            ):
                 action[Actions.forward] = 1.0
-            # Note: When power <= 80%, we don't set forward=1, so ship uses base thrust only
+            # Note: When power <= 90%, we don't set forward=1, so ship uses base thrust only
 
         return action
 
