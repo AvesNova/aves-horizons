@@ -20,14 +20,14 @@ from scripted_agent import ScriptedAgent
 def print_game_info():
     """Print game instructions"""
     print("=" * 60)
-    print("SPACE COMBAT - 2v2 Team Battle")
+    print("SPACE COMBAT - Team Battle")
     print("=" * 60)
     print("Controls for Human Player (Team 0, Ship 0):")
     print("  Arrow Keys or WASD: Move")
     print("  Shift: Sharp turn mode (more agile but uses more energy)")
     print("  Space: Shoot")
     print("\nObjective:")
-    print("  Work with your AI teammate (Ship 1) to destroy Team 1 (Ships 2 & 3)!")
+    print("  Work with your AI teammates to destroy the enemy team!")
     print("  Watch your health and power levels.")
     print("\nPress any key to start, ESC or close window to quit.")
     print("=" * 60)
@@ -66,52 +66,40 @@ def main():
         render_mode="human",
         world_size=(1200, 800),
         memory_size=1,
-        max_ships=4,  # Support 2v2 mode with 4 ships
+        max_ships=8,  # Support up to 4v4 mode with 8 ships
         agent_dt=0.04,
         physics_dt=0.02,
     )
 
-    # Create scripted agents for AI ships in 2v2 mode
-    scripted_agents = {
-        1: ScriptedAgent(  # Team 0, Ship 1 (AI teammate)
-            controlled_ship_id=1,
-            max_shooting_range=500.0,
-            angle_threshold=5.0,
-            bullet_speed=500.0,
-            target_radius=10.0,
-            radius_multiplier=1.5,
-            world_size=(1200, 800),
-        ),
-        2: ScriptedAgent(  # Team 1, Ship 2 (AI enemy)
-            controlled_ship_id=2,
-            max_shooting_range=500.0,
-            angle_threshold=5.0,
-            bullet_speed=500.0,
-            target_radius=10.0,
-            radius_multiplier=1.5,
-            world_size=(1200, 800),
-        ),
-        3: ScriptedAgent(  # Team 1, Ship 3 (AI enemy)
-            controlled_ship_id=3,
-            max_shooting_range=500.0,
-            angle_threshold=5.0,
-            bullet_speed=500.0,
-            target_radius=10.0,
-            radius_multiplier=1.5,
-            world_size=(1200, 800),
-        ),
-    }
+    # Create scripted agents dynamically based on max ships
+    def create_scripted_agents(max_ships: int) -> dict:
+        """Create scripted agents for all ships except ship 0 (human player)"""
+        agents = {}
+        for ship_id in range(1, max_ships):
+            agents[ship_id] = ScriptedAgent(
+                controlled_ship_id=ship_id,
+                max_shooting_range=500.0,
+                angle_threshold=5.0,
+                bullet_speed=500.0,
+                target_radius=10.0,
+                radius_multiplier=1.5,
+                world_size=(1200, 800),
+            )
+        return agents
+
+    scripted_agents = create_scripted_agents(env.max_ships)
 
     try:
         # Reset environment
-        observation, info = env.reset(game_mode="2v2")
+        observation, info = env.reset(game_mode="nvn")
 
         # Add human control for ship 0
         env.add_human_player(ship_id=0)
 
         print("Game started! Fight!")
 
-        episode_reward = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+        # Initialize dynamic reward tracking
+        episode_reward = {}
         episode_time = 0.0
 
         while True:
@@ -143,6 +131,8 @@ def main():
             # Update episode stats
             episode_time = info.get("current_time", 0.0)
             for ship_id in rewards:
+                if ship_id not in episode_reward:
+                    episode_reward[ship_id] = 0.0
                 episode_reward[ship_id] += rewards[ship_id]
 
             # Print stats every few frames
@@ -153,38 +143,61 @@ def main():
             if terminated:
                 print("\n" + "=" * 60)
 
-                # Determine winner based on teams
+                # Determine winner based on teams (dynamic)
                 ship_states = info.get("ship_states", {})
-                team_0_alive = (
-                    ship_states.get(0, {}).get("alive", False) or
-                    ship_states.get(1, {}).get("alive", False)
-                )
-                team_1_alive = (
-                    ship_states.get(2, {}).get("alive", False) or
-                    ship_states.get(3, {}).get("alive", False)
-                )
 
-                if team_0_alive and not team_1_alive:
-                    print("🎉 VICTORY! Team 0 (Your team) wins!")
-                elif team_1_alive and not team_0_alive:
-                    print("💀 DEFEAT! Team 1 (Enemy team) wins!")
+                # Group ships by team
+                teams_alive = {}
+                for ship_id, ship_state in ship_states.items():
+                    team_id = ship_state.get("team_id", 0)
+                    if team_id not in teams_alive:
+                        teams_alive[team_id] = False
+                    if ship_state.get("alive", False):
+                        teams_alive[team_id] = True
+
+                # Determine winner
+                alive_teams = [
+                    team_id for team_id, alive in teams_alive.items() if alive
+                ]
+
+                if len(alive_teams) == 1:
+                    winning_team = alive_teams[0]
+                    if winning_team == 0:
+                        print("🎉 VICTORY! Team 0 (Your team) wins!")
+                    else:
+                        print(f"💀 DEFEAT! Team {winning_team} wins!")
+                elif len(alive_teams) == 0:
+                    print("🤝 DRAW! All teams were eliminated!")
                 else:
-                    print("🤝 DRAW! Both teams were eliminated!")
+                    print("🤝 DRAW! Multiple teams survived!")
 
                 print(f"\nFinal Scores:")
-                print(f"  Team 0 - Ship 0 (Human): {episode_reward[0]:.1f}")
-                print(f"  Team 0 - Ship 1 (AI): {episode_reward[1]:.1f}")
-                print(f"  Team 1 - Ship 2 (AI): {episode_reward[2]:.1f}")
-                print(f"  Team 1 - Ship 3 (AI): {episode_reward[3]:.1f}")
+                # Group ships by team for display
+                teams_scores = {}
+                for ship_id, ship_state in ship_states.items():
+                    team_id = ship_state.get("team_id", 0)
+                    if team_id not in teams_scores:
+                        teams_scores[team_id] = []
+
+                    player_type = "Human" if ship_id == 0 else "AI"
+                    score = episode_reward.get(ship_id, 0.0)
+                    teams_scores[team_id].append((ship_id, player_type, score))
+
+                # Display scores by team
+                for team_id in sorted(teams_scores.keys()):
+                    for ship_id, player_type, score in sorted(teams_scores[team_id]):
+                        print(
+                            f"  Team {team_id} - Ship {ship_id} ({player_type}): {score:.1f}"
+                        )
                 print(f"  Battle Duration: {episode_time:.1f} seconds")
 
                 # Ask to play again
                 print("\nPress any key to play again, or close window to quit...")
 
                 # Reset for next game
-                observation, info = env.reset(game_mode="2v2")
+                observation, info = env.reset(game_mode="nvn")
                 env.add_human_player(ship_id=0)
-                episode_reward = {0: 0.0, 1: 0.0, 2: 0.0, 3: 0.0}
+                episode_reward = {}
                 episode_time = 0.0
                 print("New game started!")
 

@@ -131,7 +131,7 @@ class Environment(gym.Env):
             self.get_ship_positions(n_ships)
             * attitude
             * default_ship_config.collision_radius
-            * 2
+            * 4
         )
 
         positions = offsets + origin
