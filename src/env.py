@@ -241,14 +241,35 @@ class Environment(gym.Env):
                 for idx in reversed(sorted(hit_indices)):
                     bullets.remove_bullet(idx)
 
-    def _calculate_team_reward(self, current_state: State, team_id: int) -> float:
-        """Calculate reward for a specific team"""
+    def _calculate_team_reward(
+        self, current_state: State, team_id: int, episode_ended: bool = False
+    ) -> float:
+        """
+        Calculate reward for a specific team using the new reward structure:
+        - Victory/Defeat: ±1.0 (episode end only)
+        - Ship Death: ±0.1 (ally death = -0.1, enemy death = +0.1)
+        - Damage: ±0.001 per damage point (dealt = +0.001, taken = -0.001)
+        """
         team_reward = 0.0
 
-        if len(self.state) < 2:
-            return team_reward
+        # Calculate tactical rewards (damage/death) from state transitions
+        if len(self.state) >= 2:
+            previous_state = self.state[-2]
+            team_reward += self._calculate_tactical_rewards(
+                current_state, previous_state, team_id
+            )
 
-        previous_state = self.state[-2]  # Use existing state memory
+        # Add episode outcome rewards if the episode has ended
+        if episode_ended:
+            team_reward += self._calculate_outcome_rewards(current_state, team_id)
+
+        return team_reward
+
+    def _calculate_tactical_rewards(
+        self, current_state: State, previous_state: State, team_id: int
+    ) -> float:
+        """Calculate damage and death rewards from state transition"""
+        reward = 0.0
 
         for ship_id, current_ship in current_state.ships.items():
             if ship_id not in previous_state.ships:
@@ -256,23 +277,47 @@ class Environment(gym.Env):
 
             previous_ship = previous_state.ships[ship_id]
 
-            # Death events
+            # Death events (±0.1)
             if previous_ship.alive and not current_ship.alive:
                 if current_ship.team_id == team_id:
-                    team_reward -= 1.0  # Our ship died
+                    reward -= 0.1  # Our ship died
                 else:
-                    team_reward += 1.0  # Enemy ship died
+                    reward += 0.1  # Enemy ship died
 
-            # Damage events (only for ships that are still alive)
+            # Damage events (±0.001 per damage point)
             elif previous_ship.alive and current_ship.alive:
                 damage_taken = previous_ship.health - current_ship.health
                 if damage_taken > 0:
                     if current_ship.team_id == team_id:
-                        team_reward -= 0.01 * damage_taken  # Our ship took damage
+                        reward -= 0.001 * damage_taken  # Our ship took damage
                     else:
-                        team_reward += 0.01 * damage_taken  # Enemy took damage
+                        reward += 0.001 * damage_taken  # Enemy took damage
 
-        return team_reward
+        return reward
+
+    def _calculate_outcome_rewards(self, final_state: State, team_id: int) -> float:
+        """Calculate episode outcome rewards (±1.0)"""
+
+        # Count alive ships per team
+        team_ships_alive = {}
+        for ship in final_state.ships.values():
+            if ship.alive:
+                team_ships_alive[ship.team_id] = (
+                    team_ships_alive.get(ship.team_id, 0) + 1
+                )
+
+        our_ships_alive = team_ships_alive.get(team_id, 0)
+        enemy_ships_alive = sum(
+            count for tid, count in team_ships_alive.items() if tid != team_id
+        )
+
+        # Determine outcome
+        if our_ships_alive > 0 and enemy_ships_alive == 0:
+            return 1.0  # Victory
+        elif our_ships_alive == 0 and enemy_ships_alive > 0:
+            return -1.0  # Defeat
+        else:
+            return 0.0  # Draw (both dead or timeout with survivors on both sides)
 
     def _check_termination(self, state: State) -> tuple[bool, dict[int, bool]]:
         """Check if episode should terminate and which agents are done"""
@@ -337,7 +382,6 @@ class Environment(gym.Env):
         if self.render_mode == "human":
             info["human_controlled"] = list(self.renderer.human_ship_ids)
 
-        # Return empty rewards dict - let wrapper handle team rewards
         return self.get_observation(), {}, terminated, False, info
 
     def close(self):
