@@ -166,12 +166,13 @@ class UnifiedGameRunner:
         game_mode: str = "nvn",
         collect_data: bool = False,
         progress_callback=None,
+        max_steps: int = 10000,
     ) -> list[dict]:
         """Run multiple episodes with progress tracking"""
         episodes = []
 
         for i in range(n_episodes):
-            episode_data = self.run_episode(game_mode, collect_data)
+            episode_data = self.run_episode(game_mode, collect_data, max_steps)
             episodes.append(episode_data)
 
             if progress_callback:

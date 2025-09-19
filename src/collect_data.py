@@ -76,28 +76,33 @@ def load_episodes(filepath: Path) -> list[dict]:
 def collect_bc_data(config: dict):
     """Collect behavior cloning data (scripted vs scripted)"""
     print("Starting BC data collection...")
-    print(f"Target: {sum(config['episodes_per_mode'].values())} total episodes")
+    
+    # Extract BC config
+    bc_config = config['data_collection']['bc_data']
+    env_config = config['environment']
+    
+    print(f"Target: {sum(bc_config['episodes_per_mode'].values())} total episodes")
 
     # Setup runner
     runner = create_standard_runner(
-        world_size=tuple(config.get("world_size", [1200, 800])),
-        max_ships=config.get("max_ships", 8),
+        world_size=tuple(env_config.get("world_size", [1200, 800])),
+        max_ships=env_config.get("max_ships", 8),
     )
     runner.setup_environment()
 
     # Create scripted agents for both teams
     scripted_agent = create_scripted_agent(
-        world_size=tuple(config.get("world_size", [1200, 800])),
-        config=config.get("scripted_config", {}),
+        world_size=tuple(env_config.get("world_size", [1200, 800])),
+        config=config.get("scripted_agent", {}),
     )
 
     runner.assign_agent(0, scripted_agent)
     runner.assign_agent(1, scripted_agent)
 
     # Collection setup
-    episodes_per_mode = config["episodes_per_mode"]
-    game_modes = config["game_modes"]
-    output_dir = Path(config["output_dir"])
+    episodes_per_mode = bc_config["episodes_per_mode"]
+    game_modes = bc_config["game_modes"]
+    output_dir = Path(bc_config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
     all_episodes = []
@@ -126,6 +131,7 @@ def collect_bc_data(config: dict):
                 n_episodes=episodes_per_mode[game_mode],
                 game_mode=game_mode,
                 collect_data=True,
+                max_steps=env_config.get("max_episode_steps", 10000),
                 progress_callback=lambda i, total, ep_data: (
                     pbar.update(1),
                     pbar.set_postfix(
@@ -145,7 +151,7 @@ def collect_bc_data(config: dict):
             episodes_with_returns = []
             for episode in episodes:
                 episode_with_returns = add_mc_returns(
-                    episode, config.get("gamma", 0.99)
+                    episode, bc_config.get("gamma", 0.99)
                 )
                 episodes_with_returns.append(episode_with_returns)
                 all_episodes.append(episode_with_returns)

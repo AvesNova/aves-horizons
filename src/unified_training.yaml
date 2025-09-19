@@ -7,6 +7,7 @@ environment:
   max_ships: 8
   agent_dt: 0.04
   physics_dt: 0.02
+  max_episode_steps: 256
 
 # Data Collection Configuration
 data_collection:
