@@ -647,10 +647,16 @@ class TestStateRetrieval:
         assert state["alive"] == basic_ship.alive
         assert state["health"] == basic_ship.health
         assert state["power"] == basic_ship.power
-        assert state["position"] == basic_ship.position  # Now returns complex number directly
-        assert state["velocity"] == basic_ship.velocity  # Now returns complex number directly
+        assert (
+            state["position"] == basic_ship.position
+        )  # Now returns complex number directly
+        assert (
+            state["velocity"] == basic_ship.velocity
+        )  # Now returns complex number directly
         assert state["speed"] == basic_ship.speed
-        assert state["attitude"] == basic_ship.attitude  # Now returns complex number directly
+        assert (
+            state["attitude"] == basic_ship.attitude
+        )  # Now returns complex number directly
         assert state["is_shooting"] == basic_ship.is_shooting
         assert isinstance(state["token"], torch.Tensor)
         assert state["token"].shape == (10,)  # Token has 10 dimensions

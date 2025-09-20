@@ -49,7 +49,7 @@ class TestReset:
 
     def test_reset_1v1(self, basic_env):
         """Test 1v1 reset creates correct initial state."""
-        obs, info = basic_env.reset(game_mode="1v1")
+        obs, info = basic_env.reset(game_mode="1v1_old")
 
         assert len(basic_env.state) == 1
         state = basic_env.state[0]
@@ -239,7 +239,7 @@ class TestWorldWrapping:
 
     def test_ship_position_wrapping(self, basic_env):
         """Test that ship positions wrap at boundaries."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         # Move ship 0 past right boundary
         ship0 = basic_env.state[-1].ships[0]
@@ -260,7 +260,7 @@ class TestWorldWrapping:
 
     def test_ship_wrapping_all_boundaries(self, basic_env):
         """Test wrapping on all four boundaries."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
         ship = basic_env.state[-1].ships[0]
         velocity = ship.velocity

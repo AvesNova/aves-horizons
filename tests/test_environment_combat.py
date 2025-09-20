@@ -14,7 +14,7 @@ class TestCombatScenarios:
 
     def test_simple_duel(self, basic_env):
         """Test a simple shooting duel."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         basic_env.state[-1].ships[0].position = 400.0 + 300.0j
         basic_env.state[-1].ships[1].position = 500.0 + 300.0j
 
@@ -47,7 +47,7 @@ class TestCombatScenarios:
 
     def test_chase_and_shoot(self, basic_env):
         """Test chasing while shooting."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         # Ship 0 chases and shoots
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
@@ -78,7 +78,7 @@ class TestCombatScenarios:
 
     def test_combat_to_destruction(self, basic_env):
         """Test combat until one ship is destroyed."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         # Place ships closer for faster combat
         basic_env.state[-1].ships[0].position = 400.0 + 300.0j
@@ -115,7 +115,7 @@ class TestCombatScenarios:
 
     def test_energy_management_in_combat(self, basic_env):
         """Test energy depletion affects combat."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         # Ship 0 shoots continuously
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
@@ -155,7 +155,7 @@ class TestCombatScenarios:
 
     def test_projectile_lifetime(self, basic_env):
         """Test that projectiles expire after lifetime."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         # Fire a bullet
         actions = {0: torch.zeros(len(Actions)), 1: torch.zeros(len(Actions))}
@@ -182,7 +182,7 @@ class TestMultiShipCombat:
 
     def test_simultaneous_damage(self, basic_env):
         """Test multiple ships taking damage simultaneously."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
 
         initial_healths = {
             sid: ship.health for sid, ship in basic_env.state[-1].ships.items()

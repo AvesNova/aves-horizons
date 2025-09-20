@@ -300,10 +300,11 @@ class TestSeedingAndDeterminism:
 
     def test_deterministic_reset(self, basic_env):
         """Test that reset produces consistent initial states."""
+        # Use deterministic positioning for consistency 
         states = []
 
         for _ in range(3):
-            obs, _ = basic_env.reset(game_mode="1v1")
+            obs, _ = basic_env.reset(game_mode="1v1_old")
 
             # Record ship positions
             positions = []
@@ -322,8 +323,8 @@ class TestSeedingAndDeterminism:
         results = []
 
         for _ in range(2):
-            env = Environment()
-            env.reset(game_mode="1v1")
+            env = Environment(rng=fixed_rng)
+            env.reset(game_mode="1v1_old")
 
             # Set fixed RNG for all ships
             for ship in env.state[-1].ships.values():

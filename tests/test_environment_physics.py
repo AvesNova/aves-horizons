@@ -54,11 +54,14 @@ class TestPhysicsIntegration:
 
     def test_consistent_physics_determinism(self, basic_env, fixed_rng):
         """Test that physics is deterministic with fixed seeds."""
+        # Use deterministic reset for consistent initial positions  
+        basic_env.rng = fixed_rng
+        
         # Run simulation twice with same initial conditions
         results = []
 
         for _ in range(2):
-            basic_env.reset(game_mode="1v1")
+            basic_env.reset(game_mode="1v1_old")
 
             # Use fixed RNG for any randomness
             for ship in basic_env.state[-1].ships.values():
@@ -89,7 +92,7 @@ class TestCollisions:
 
     def test_bullet_ship_collision(self, basic_env):
         """Test that bullets hitting ships cause damage."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         state = basic_env.state[-1]
 
         ship1 = state.ships[1]
@@ -118,7 +121,7 @@ class TestCollisions:
 
     def test_no_friendly_fire(self, basic_env):
         """Test that ships don't damage themselves with their own bullets."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         state = basic_env.state[-1]
 
         ship0 = state.ships[0]
@@ -146,7 +149,7 @@ class TestCollisions:
 
     def test_multiple_bullet_hits(self, basic_env):
         """Test that multiple bullets can hit same ship."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         state = basic_env.state[-1]
 
         ship1 = state.ships[1]
@@ -176,7 +179,7 @@ class TestCollisions:
 
     def test_collision_radius(self, basic_env):
         """Test that collision radius is respected."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         state = basic_env.state[-1]
 
         ship1 = state.ships[1]
@@ -205,7 +208,7 @@ class TestCollisions:
 
     def test_dead_ship_no_collision(self, basic_env):
         """Test that dead ships don't interact with bullets."""
-        basic_env.reset(game_mode="1v1")
+        basic_env.reset(game_mode="1v1_old")
         state = basic_env.state[-1]
 
         # Kill ship1

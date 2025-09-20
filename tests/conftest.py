@@ -5,13 +5,6 @@ Shared test fixtures and configuration for the ship game test suite.
 import pytest
 import numpy as np
 import torch
-from typing import Generator
-
-# Add src to path for imports
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from ship import Ship, ShipConfig
 from bullets import Bullets
@@ -80,7 +73,7 @@ def basic_ship(default_ship_config) -> Ship:
         team_id=0,
         ship_config=default_ship_config,
         initial_x=world_width * 0.5,  # Center x
-        initial_y=world_height * 0.5, # Center y  
+        initial_y=world_height * 0.5,  # Center y
         initial_vx=100.0,  # Standard test velocity
         initial_vy=0.0,
         world_size=(world_width, world_height),

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aves-horizons"
+version = "0.1.0"
+description = "Physics-based ship combat simulation with transformer-based AI agents"
+dependencies = [
+    "torch",
+    "numpy", 
+    "gymnasium",
+    "stable-baselines3",
+    "PyYAML",
+    "matplotlib",
+    "tqdm",
+    "pygame",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-v", "--tb=short"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
