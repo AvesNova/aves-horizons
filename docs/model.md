@@ -114,32 +114,6 @@ team_actions = model_output[team_ship_indices]
 - 6 timestep history
 - No complex encodings
 
-**Architecture:**
-```python
-class ShipTransformer(nn.Module):
-    def __init__(self, d_model=64, nhead=4, num_layers=3):
-        self.ship_embeddings = nn.Embedding(8, d_model)  # 8 ship slots
-        self.input_projection = nn.Linear(12, d_model)   # Base token to d_model
-        self.transformer = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(d_model, nhead), 
-            num_layers
-        )
-        self.action_head = nn.Linear(d_model, 6)  # 6 actions per ship
-    
-    def forward(self, tokens, ship_ids):
-        # tokens: [batch, seq_len, 12]
-        # ship_ids: [batch, seq_len] 
-        
-        x = self.input_projection(tokens)
-        x += self.ship_embeddings(ship_ids)
-        
-        x = self.transformer(x)
-        
-        # Extract final timestep tokens for each ship
-        actions = self.action_head(x[:, -8:])  # Last 8 tokens (t=0 for all ships)
-        return actions  # [batch, 8, 6]
-```
-
 **Training Process:**
 1. Start with 1v1 scenarios
 2. Gradually increase to 2v2, then 4v4

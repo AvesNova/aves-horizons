@@ -4,149 +4,207 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-Aves-Horizons is a physics-based space combat simulation game designed for AI research and reinforcement learning. Ships engage in combat using realistic physics with thrust, turning, and projectile systems. The game serves as a testbed for multi-agent AI training, particularly for a novel transformer-based architecture that treats combat as temporal sequence prediction.
-
-## Architecture Overview
-
-### Core Components
-
-**Environment System (`src/env.py`)**
-- OpenAI Gym-compatible environment for RL training
-- Multi-agent support with independent action/observation spaces
-- Physics substeps at 50Hz with agent decisions at 10Hz
-- Toroidal (wrap-around) world boundaries
-- Memory system storing temporal states for transformer training
-
-**Ship System (`src/ship.py`)**
-- Complex physics model with thrust, drag, and lift forces
-- 6-action control: forward, backward, left, right, sharp_turn, shoot
-- Turn offset system for velocity-relative attitude control
-- Energy management with power consumption/regeneration
-- Lookup tables for efficient force/coefficient calculations
-
-**Projectile System (`src/bullets.py`)**
-- High-performance bullet management with O(1) allocation
-- Continuous collision detection for accurate hit registration at low FPS
-- Vectorized position updates and collision checks
-
-**Rendering System (`src/renderer.py`)**
-- Pygame-based visualization with real-time human controls
-- Multi-player support (Ship 0: WASD+Space, Ship 1: IJKL+O)
-- Health/power visualization and team color coding
-
-### Key Architectural Patterns
-
-**Physics-First Design**: All game mechanics are physics-based rather than rule-based. Ships experience realistic thrust, drag, and lift forces with proper momentum conservation.
-
-**Temporal Memory Architecture**: The environment maintains a deque of states designed to support transformer models that learn from temporal sequences of ship states.
-
-**Vectorized Operations**: Heavy use of NumPy for batch operations across multiple ships/bullets for performance.
+Aves Horizons is a physics-based space combat simulation featuring transformer-based AI agents. The project combines reinforcement learning, behavior cloning, and sophisticated physics simulation to create intelligent multi-agent combat scenarios.
 
 ## Development Commands
-
-### Environment Setup
-```bash
-# Activate virtual environment (if not already active)
-.\aves-horizons-env\Scripts\Activate.ps1
-
-# Install dependencies (if needed)
-pip install torch gymnasium numpy pygame
-```
-
-### Running the Game
-```bash
-# Human vs AI gameplay
-python src/play.py
-
-# Training mode (empty - needs implementation)
-python src/train.py
-```
 
 ### Testing
 ```bash
 # Run all tests
 pytest
 
+# Run specific test categories
+pytest tests/test_environment_basics.py
+pytest tests/test_environment_physics.py
+pytest tests/test_environment_combat.py
+pytest tests/test_ship_physics.py
+pytest tests/test_ship_combat.py
+
 # Run tests with verbose output
 pytest -v
+
+# Run tests with coverage
+pytest --tb=short -v
 ```
 
-### Game Controls
-- **Ship 0 (Human)**: Arrow Keys/WASD + Shift (sharp turn) + Space (shoot)
-- **Ship 1 (Human)**: IJKL + U (sharp turn) + O (shoot)
+### Training Pipeline
 
-## Critical Implementation Details
+**Complete training pipeline (recommended):**
+```bash
+# 1. Collect BC training data
+python src/collect_data.py collect_bc --config src/unified_training.yaml
 
-### Physics Integration
-- Uses adaptive ODE integration for stability at variable framerates
-- Physics runs at `physics_dt = 0.02s` (50 FPS) with agent decisions at `agent_dt = 0.04s` (25 FPS)
-- Turn offset system allows ships to face different directions than velocity (aerodynamic turning)
+# 2. Run full pipeline: BC pretraining → RL training → evaluation
+python src/unified_train.py full --config src/unified_training.yaml
 
-### Action Space Architecture
-Actions use MultiBinary(6) encoding where simultaneous button presses create emergent behaviors:
-- Forward + Backward = Base thrust (cancels out)  
-- Left + Right = Maintain current turn offset
-- Sharp turn modifier changes turn angles and aerodynamic coefficients
+# 3. Evaluate the final model
+python src/collect_data.py evaluate_model --model checkpoints/unified_full_*/final_rl_model.zip
+```
 
-### Memory and Observation Design
-The environment maintains temporal history specifically for transformer training:
-- `memory_size` parameter controls state retention
-- Observations include self state, enemy state, nearby bullets, and world info
-- Designed to support the transformer architecture detailed in `docs/model.md`
+**Individual training phases:**
+```bash
+# Behavior cloning only
+python src/unified_train.py bc --config src/unified_training.yaml
 
-## Transformer AI Architecture
+# RL training from scratch
+python src/unified_train.py rl --config src/unified_training.yaml
 
-This codebase is designed to support a novel transformer-based multi-agent AI system described in `docs/model.md`. Key aspects:
+# RL training from BC model
+python src/unified_train.py rl --config src/unified_training.yaml \
+    --bc-model checkpoints/unified_bc_*/best_bc_model.pt
+```
 
-**Token Design**: Each ship's state at each timestep becomes a token with position, velocity, attitude, health, power, and temporal information.
+**Data collection:**
+```bash
+# Collect BC data (scripted vs scripted)
+python src/collect_data.py collect_bc --config src/unified_training.yaml
 
-**Multi-Agent Training**: Single model predicts actions for all ships simultaneously, enabling natural team coordination without explicit communication protocols.
+# Collect self-play data
+python src/collect_data.py collect_selfplay --config src/unified_training.yaml
+```
 
-**Temporal Understanding**: The model learns from sequences of game states to understand multi-step dynamics and opponent behavior patterns.
+### Evaluation and Testing
+```bash
+# Evaluate a trained model
+python src/collect_data.py evaluate_model --model path/to/model.zip
 
-## Development Guidelines
+# Human play testing
+python src/collect_data.py human_play
 
-### Code Style
-- Use type hints throughout (established pattern in existing code)
-- Use modern type hints such as `dict` and `None` instead of `Dict` and `Optional`
-- Dataclasses for configuration objects (`ShipConfig`)
-- Complex numbers for 2D vectors (position, velocity, attitude)
-- Lookup tables for performance-critical calculations
+# Compare multiple models
+for model in checkpoints/*/best_*.pt; do
+    echo "Evaluating $model"
+    python src/collect_data.py evaluate_model --model "$model"
+done
+```
 
-### Performance Considerations
-- All physics calculations are vectorized using NumPy
-- Bullet system uses efficient memory management with free lists
-- Collision detection optimized for batch processing
-- GPU acceleration supported via PyTorch tensors
+### Development Workflow
+```bash
+# Run from project root (required for imports)
+cd /path/to/aves-horizons
+python src/[script].py
 
-### Testing Strategy
-- Pytest configuration in `pytest.ini` with verbose output and short tracebacks
-- Tests should verify both discrete and continuous collision detection modes
-- Performance benchmarks for different frame rates and ship counts
+# Add src to Python path if needed
+export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
+```
 
-## Physics Configuration
+## High-Level Architecture
 
-Default ship parameters are defined in `ShipConfig` class:
-- **Base Thrust**: 10.0 (continuous thrust)
-- **Boost Thrust**: 80.0 (when forward pressed)
-- **Turn Angles**: 5° (normal), 15° (sharp)
-- **Collision Radius**: 10.0
-- **Bullet Speed**: 500.0 with 12.0 spread
-- **Energy Costs**: Forward costly, backward regenerative
+### Core System Components
 
-## Key Research Features
+**Environment System (`env.py`)**
+- OpenAI Gym-compatible multi-agent environment
+- Physics simulation using implicit Euler
+- Supports 1v1, 2v2, 3v3, 4v4, and variable n-vs-n scenarios
+- Toroidal world boundaries with collision detection
+- Configurable timesteps: agent_dt (action frequency) and physics_dt (simulation accuracy)
 
-### Multi-Agent Coordination  
-The architecture supports emergent team coordination through shared model training rather than explicit communication protocols.
+**Agent System (`agents.py`)**
+- Pluggable architecture supporting multiple agent types:
+  - **ScriptedAgentProvider**: Sophisticated predictive targeting agents
+  - **RLAgentProvider**: Supports both transformer and PPO models
+  - **HumanAgentProvider**: Real-time human control via keyboard/mouse
+  - **SelfPlayAgentProvider**: Manages model memory for self-play training
+- Unified action interface across all agent types
 
-### Temporal Sequence Learning
-Environment design specifically supports models that learn from temporal sequences of multi-agent interactions.
+**Training Pipeline (`unified_train.py`)**
+- Two-phase training: Behavior Cloning → Reinforcement Learning
+- Configurable opponent types: scripted, self-play, or mixed
+- Support for model initialization from BC pretraining
+- Integrated evaluation and checkpointing
 
-## Future Development
+### Physics and Simulation
 
-The transformer architecture roadmap includes:
-1. **MVP**: Basic temporal sequence learning with fixed scenarios
-2. **Enhanced**: Opponent modeling and self-play training  
-3. **Full Vision**: Emergent team coordination and diverse AI personalities
+**Ship Dynamics (`ship.py`)**
+- Complex physics model with realistic aerodynamics
+- Attitude-based control system with velocity-relative turning
+- Energy management (boost/thrust consumption and regeneration)
+- Combat system with projectiles and health management
 
-Training infrastructure needs implementation in `src/train.py` to support this research direction.
+**State Representation (`state.py`)**
+- Centralized game state management
+- Token-based observations for transformer models
+- Normalized observations for consistent ML training
+
+**Physics Integration**
+- Uses simple implicit Euler integration
+- Force-based dynamics with thrust, drag, and lift forces
+
+### AI and Learning Architecture
+
+**Transformer-Based Models (`team_transformer_model.py`)**
+- Multi-agent transformer architecture treating ships as temporal tokens
+- Unified team control: single model predicts actions for entire team
+- Ship identity embeddings and temporal encoding
+- Supports both policy and value heads for RL training
+
+**Training Approaches**
+- **Behavior Cloning**: Learn from scripted agent demonstrations
+- **Reinforcement Learning**: PPO training with configurable opponents
+- **Self-Play**: Dynamic opponent memory with model versioning
+- **Mixed Training**: Combines scripted opponents and self-play
+
+### Key Design Patterns
+
+**Multi-Agent Coordination**
+- Single forward pass generates coordinated actions for entire team
+- Opponent modeling through shared attention mechanisms
+- Implicit communication via shared model representations
+
+**Modular Configuration**
+- YAML-based configuration system (`unified_training.yaml`)
+- Derived physics parameters (`derived_ship_parameters.yaml`)
+- Flexible training regimes and hyperparameter management
+
+**Scalable Architecture**
+- Supports variable team sizes (1v1 to 4v4)
+- Fractals-based ship positioning for balanced starts
+- Efficient batched physics simulation across multiple agents
+
+## Important Implementation Details
+
+**Coordinate System**
+- Uses complex numbers for 2D positions and velocities
+- Attitude represented as unit complex numbers (direction vectors)
+- Turn offsets maintain persistent state for orientation control
+
+**Action Space**
+- MultiBinary(6) actions: [forward, backward, left, right, sharp_turn, shoot]
+- Turn state lookup table using bit patterns for efficient processing
+- Instant response turning with velocity-relative attitude calculations
+
+**Training Data Flow**
+- BC training uses Monte Carlo returns for value function learning
+- RL training supports configurable opponent curricula
+- Self-play maintains rolling memory of previous model versions
+
+**Performance Optimizations**
+- GPU-accelerated physics simulation
+- Vectorized operations across ship batches
+- Lazy-loaded rendering for headless training
+- Compressed data storage for large training datasets
+
+## Configuration Management
+
+The project uses a hierarchical YAML configuration system:
+
+- **`src/unified_training.yaml`**: Main training configuration
+- **`src/derived_ship_parameters.yaml`**: Physics parameters derived from simulation
+- **`pytest.ini`**: Test configuration and filtering
+
+Key configuration sections:
+- `environment`: World size, timesteps, ship limits
+- `model`: Transformer architecture and training hyperparameters  
+- `training`: RL configuration, opponent types, evaluation frequency
+- `data_collection`: Episode counts, game modes, output directories
+
+## Testing Strategy
+
+The test suite emphasizes physics accuracy and multi-agent correctness:
+
+- **Environment tests**: Initialization, reset behavior, observation structure
+- **Physics tests**: Force calculations, integration accuracy, collision detection
+- **Combat tests**: Projectile mechanics, damage systems, health management
+- **Agent tests**: Action validation, team coordination, opponent interaction
+
+Tests use deterministic fixtures and configurable tolerances for reliable CI/CD integration.
