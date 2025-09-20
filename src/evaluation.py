@@ -376,8 +376,8 @@ def quick_eval(
 
 
 def compare_models(
-    model_paths: List[str], config_path: str, n_episodes: int = 20
-) -> Dict[str, Dict[str, float]]:
+    model_paths: list[str], config_path: str, n_episodes: int = 20
+) -> dict[str, dict[str, float]]:
     """
     Compare multiple trained models.
 

@@ -168,10 +168,14 @@ class Environment(gym.Env):
         self.current_time = 0.0
         self.state.clear()
 
-        if game_mode == "1v1":
+        if game_mode == "1v1_old":
             self.state.append(self.one_vs_one_reset())
+        elif game_mode == "1v1":
+            self.state.append(self.n_vs_n_reset(ships_per_team=1))
         elif game_mode == "2v2":
             self.state.append(self.n_vs_n_reset(ships_per_team=2))
+        elif game_mode == "3v3":
+            self.state.append(self.n_vs_n_reset(ships_per_team=3))
         elif game_mode == "4v4":
             self.state.append(self.n_vs_n_reset(ships_per_team=4))
         elif game_mode == "nvn":

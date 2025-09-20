@@ -1,22 +1,39 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Play",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/play.py",
-            "console": "integratedTerminal"
+            "program": "src/collect_data.py",
+            "console": "integratedTerminal",
+            "args": [
+                "human_play"
+            ]
+        },
+        {
+            "name": "Collect BC",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src/collect_data.py",
+            "console": "integratedTerminal",
+            "args": [
+                "collect_bc",
+                "--config",
+                "src/unified_training.yaml"
+            ]
         },
         {
             "name": "Train",
             "type": "debugpy",
             "request": "launch",
-            "program": "src/train.py",
-            "console": "integratedTerminal"
+            "program": "src/unified_train.py",
+            "console": "integratedTerminal",
+            "args": [
+                "full",
+                "--config",
+                "src/unified_training.yaml"
+            ]
         },
         {
             "name": "Current File",

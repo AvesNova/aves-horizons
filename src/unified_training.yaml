@@ -14,10 +14,10 @@ data_collection:
   # BC Data Collection
   bc_data:
     episodes_per_mode:
-      "1v1": 2500
-      "2v2": 2500  
-      "3v3": 2500
-      "4v4": 2500
+      "1v1": 50
+      "2v2": 50 
+      "3v3": 50
+      "4v4": 50
     game_modes: ["1v1", "2v2", "3v3", "4v4"]
     output_dir: "data/bc_pretraining"
     gamma: 0.99
