@@ -183,10 +183,17 @@ class RandomAgentProvider(Agent):
     def get_actions(
         self, obs_dict: dict, ship_ids: list[int]
     ) -> dict[int, torch.Tensor]:
-        return {
-            ship_id: torch.from_numpy(self.rng.integers(0, 2, 6)).float()
-            for ship_id in ship_ids
-        }
+        actions = {}
+        for ship_id in ship_ids:
+            # Check if ship is alive (within observation bounds and alive==1)
+            if (ship_id < obs_dict.get("alive", torch.empty(0)).shape[0] and 
+                obs_dict.get("alive", torch.zeros(1, 1))[ship_id, 0].item() == 1):
+                # Ship is alive, generate random actions
+                actions[ship_id] = torch.from_numpy(self.rng.integers(0, 2, 6)).float()
+            else:
+                # Ship is dead or not found, return zero actions
+                actions[ship_id] = torch.zeros(6, dtype=torch.float32)
+        return actions
 
     def get_agent_type(self) -> str:
         return "random"

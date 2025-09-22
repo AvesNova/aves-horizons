@@ -3,7 +3,6 @@ Tests for the bullet management system.
 """
 
 import pytest
-import numpy as np
 
 
 class TestBulletAllocation:

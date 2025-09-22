@@ -4,6 +4,7 @@ Unified Game Runner - supports all game modes and agent types
 
 from typing import Any, Optional
 import numpy as np
+import torch
 
 from env import Environment
 from agents import Agent, HumanAgentProvider

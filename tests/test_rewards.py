@@ -3,15 +3,12 @@ Tests for the team-based reward system.
 """
 
 import pytest
-import numpy as np
-import torch
 from copy import deepcopy
 
 from constants import RewardConstants
 from env import Environment
 from ship import Ship, default_ship_config
 from state import State
-from bullets import Bullets
 
 
 @pytest.fixture
@@ -489,7 +486,9 @@ class TestMultiTeamScenarios:
         )
         assert abs(outcome_reward - reward_constants.DEFEAT_REWARD) < 1e-6
 
-    def test_enemy_vs_enemy_damage(self, state_builder, reward_calculator, reward_constants):
+    def test_enemy_vs_enemy_damage(
+        self, state_builder, reward_calculator, reward_constants
+    ):
         """Test that enemy-vs-enemy damage gives us a reward (enemy taking damage is good for us)"""
         # Team 1 ship damages Team 2 ship (neither is our team)
         before_config = {

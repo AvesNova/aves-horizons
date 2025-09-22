@@ -3,7 +3,6 @@ Tests for environment physics integration and multi-step behavior.
 """
 
 import pytest
-import numpy as np
 import torch
 
 from constants import Actions
@@ -54,9 +53,9 @@ class TestPhysicsIntegration:
 
     def test_consistent_physics_determinism(self, basic_env, fixed_rng):
         """Test that physics is deterministic with fixed seeds."""
-        # Use deterministic reset for consistent initial positions  
+        # Use deterministic reset for consistent initial positions
         basic_env.rng = fixed_rng
-        
+
         # Run simulation twice with same initial conditions
         results = []
 
@@ -260,7 +259,7 @@ class TestRewardsAndTermination:
         # Environment returns empty dict - team wrapper handles death rewards
         assert isinstance(rewards, dict)
         assert len(rewards) == 0
-        
+
         # Verify termination still works
         assert terminated == True
 
