@@ -1,0 +1,12 @@
+torch
+numpy
+gymnasium
+stable-baselines3
+PyYAML
+matplotlib
+tqdm
+pygame
+
+[dev]
+pytest
+black
