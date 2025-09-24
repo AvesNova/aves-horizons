@@ -30,12 +30,19 @@ class GameRenderer:
         if self.initialized:
             return
 
-        pygame.init()
-        self.screen = pygame.display.set_mode(self.world_size)
-        pygame.display.set_caption("Space Combat Environment")
-        self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 36)
-        self.initialized = True
+        try:
+            pygame.init()
+            # Ensure video system is properly initialized
+            if not pygame.display.get_init():
+                pygame.display.init()
+            
+            self.screen = pygame.display.set_mode(self.world_size)
+            pygame.display.set_caption("Space Combat Environment")
+            self.clock = pygame.time.Clock()
+            self.font = pygame.font.Font(None, 36)
+            self.initialized = True
+        except pygame.error as e:
+            raise RuntimeError(f"Failed to initialize pygame: {e}. Make sure you have a display available.") from e
 
     def add_human_player(self, ship_id: int) -> None:
         """Register a ship to be controlled by human input"""

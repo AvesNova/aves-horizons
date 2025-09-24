@@ -184,6 +184,10 @@ class UnifiedGameRunner:
         if not self.env or self.env.render_mode != "human":
             return True
 
+        # Ensure renderer is initialized before handling events
+        if not self.env.renderer.initialized:
+            self.env.renderer.initialize()
+
         import pygame
 
         # Handle events
