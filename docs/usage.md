@@ -34,6 +34,11 @@ python src/collect_data.py evaluate_model --model checkpoints/unified_full_*/fin
 python src/collect_data.py human_play
 ```
 
+```bash
+# Review replays
+python src/collect_data.py playback --episode-file data/bc_pretraining/1v1_episodes.pkl
+```
+
 ## System Overview
 
 The unified system supports multiple agent types and training modes:

@@ -480,10 +480,10 @@ def run_playback(config: dict, episode_file: str):
                 print(f"Playback result: {playback_result}")
 
                 # Ask user if they want to continue to next episode
-                if i < len(episodes) - 1:
-                    continue_input = input(f"\nPlay next episode? (y/n): ").lower()
-                    if not continue_input.startswith("y"):
-                        break
+                # if i < len(episodes) - 1:
+                #     continue_input = input(f"\nPlay next episode? (y/n): ").lower()
+                #     if not continue_input.startswith("y"):
+                #         break
 
         except KeyboardInterrupt:
             print("\nPlayback interrupted by user")

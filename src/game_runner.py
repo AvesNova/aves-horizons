@@ -77,6 +77,36 @@ class UnifiedGameRunner:
         self.playback_step_mode = False
 
         print(f"Loaded {len(self.agents)} playback agents")
+    
+    def _restore_initial_state(self, initial_state: dict):
+        """Restore the initial state from episode data"""
+        if not self.env or not self.env.state:
+            return
+        
+        # Get the current state to modify
+        current_state = self.env.state[-1]
+        
+        # Restore each ship's initial position and state
+        for ship_id, ship_data in initial_state["ships"].items():
+            ship_id = int(ship_id)  # Convert string key back to int
+            if ship_id in current_state.ships:
+                ship = current_state.ships[ship_id]
+                
+                # Restore position, velocity, and attitude
+                ship.position = complex(ship_data["position"])
+                ship.velocity = complex(ship_data["velocity"])
+                ship.attitude = complex(ship_data["attitude"])
+                
+                # Restore health, power, and alive status
+                ship.health = ship_data["health"]
+                ship.power = ship_data["power"]
+                ship.alive = ship_data["alive"]
+                
+                # Update derived properties
+                ship.speed = abs(ship.velocity)
+                if ship.speed < 1e-6:
+                    ship.speed = 1e-6
+                    ship.velocity = ship.speed * ship.attitude
 
     def run_playback_episode(
         self, episode_data: dict, target_fps: float = 60.0, max_steps: int = 10000
@@ -91,6 +121,12 @@ class UnifiedGameRunner:
         # Reset environment with episode's game mode
         game_mode = episode_data.get("game_mode", "nvn")
         obs_dict, info = self.env.reset(game_mode=game_mode)
+        
+        # Restore original initial state if available
+        if "initial_state" in episode_data:
+            self._restore_initial_state(episode_data["initial_state"])
+            # Get updated observation after state restoration
+            obs_dict = self.env.get_observation()
 
         # Reset all playback agents
         for agent in self.agents.values():
@@ -267,6 +303,24 @@ class UnifiedGameRunner:
             "truncated": False,
             "outcome": {},
         }
+        
+        # Store initial state for playback if collecting data
+        if collect_data:
+            episode_data["initial_state"] = {
+                "ships": {
+                    ship_id: {
+                        "ship_id": ship.ship_id,
+                        "team_id": ship.team_id,
+                        "position": complex(ship.position),
+                        "velocity": complex(ship.velocity),
+                        "attitude": complex(ship.attitude),
+                        "health": ship.health,
+                        "power": ship.power,
+                        "alive": ship.alive
+                    }
+                    for ship_id, ship in self.env.state[-1].ships.items()
+                }
+            }
 
         terminated = False
         truncated = False

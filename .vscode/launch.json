@@ -12,6 +12,18 @@
             ]
         },
         {
+            "name": "Replay",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "src/collect_data.py",
+            "console": "integratedTerminal",
+            "args": [
+                "playback",
+                "--episode-file",
+                "data/bc_pretraining/1v1_episodes.pkl"
+            ]
+        },
+        {
             "name": "Collect BC",
             "type": "debugpy",
             "request": "launch",

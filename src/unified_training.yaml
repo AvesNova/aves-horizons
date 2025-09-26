@@ -15,13 +15,13 @@ data_collection:
   bc_data:
     episodes_per_mode:
       "1v1": 12
-      "2v2": 12 
+      "2v2": 12
       "3v3": 12
       "4v4": 12
     game_modes: ["1v1", "2v2", "3v3", "4v4"]
     output_dir: "data/bc_pretraining"
     gamma: 0.99
-    compress: true
+    compress: false
   
   # Self-play Data Collection
   selfplay_data:
