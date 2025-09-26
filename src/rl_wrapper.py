@@ -6,8 +6,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 from gymnasium import spaces
-from typing import Optional, Any
-import random
 from collections import deque
 
 from env import Environment
@@ -32,8 +30,10 @@ class UnifiedRLWrapper(gym.Env):
         learning_team_id: int = 0,
         team_assignments: dict[int, list[int]] | None = None,
         opponent_config: dict | None = None,
+        rng: np.random.Generator = np.random.default_rng(),
     ):
         super().__init__()
+        self.rng = rng
 
         # Environment setup
         env_config = env_config or {}
@@ -61,7 +61,7 @@ class UnifiedRLWrapper(gym.Env):
         self.wins = 0
         self.losses = 0
         self.current_episode_type = "scripted"
-        self.current_opponent: Optional[Agent] = None
+        self.current_opponent: Agent | None = None
 
         # Self-play memory management
         self.steps_since_opponent_update = 0
@@ -119,7 +119,9 @@ class UnifiedRLWrapper(gym.Env):
             return "self_play"
         elif self.opponent_type == "mixed":
             return (
-                "scripted" if random.random() < self.scripted_mix_ratio else "self_play"
+                "scripted"
+                if self.rng.random() < self.scripted_mix_ratio
+                else "self_play"
             )
         else:
             return "scripted"

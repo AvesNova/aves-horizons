@@ -9,7 +9,7 @@ equilibrium speed, turn radius, and turn speeds. Results are saved to YAML.
 import numpy as np
 import torch
 import yaml
-from typing import Dict, Any
+from typing import Any
 import math
 import os
 
@@ -109,7 +109,7 @@ def measure_equilibrium_speed() -> float:
     return equilibrium_speed
 
 
-def measure_turn_characteristics(sharp_turn: bool = False) -> Dict[str, float]:
+def measure_turn_characteristics(sharp_turn: bool = False) -> dict[str, float]:
     """
     Measure turn characteristics by holding a turn until speed stabilizes,
     then measuring turn radius and time for complete circle.
@@ -214,7 +214,7 @@ def measure_turn_characteristics(sharp_turn: bool = False) -> Dict[str, float]:
     }
 
 
-def derive_ship_parameters() -> Dict[str, Any]:
+def derive_ship_parameters() -> dict[str, Any]:
     """
     Derive all ship parameters and return as a dictionary.
     This function can be called from tests or other modules.

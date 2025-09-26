@@ -77,7 +77,7 @@ class TeamTransformerModel(nn.Module):
                 if module.bias is not None:
                     nn.init.constant_(module.bias, 0)
 
-    def forward(self, observation: dict, ship_mask: torch.Tensor = None) -> dict:
+    def forward(self, observation: dict, ship_mask: torch.Tensor | None = None) -> dict:
         """
         Forward pass through the transformer.
 

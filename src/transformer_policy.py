@@ -2,6 +2,7 @@
 Custom SB3 policy that integrates the transformer model.
 """
 
+from typing import Any
 import torch
 import torch.nn as nn
 import numpy as np
@@ -10,7 +11,6 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.distributions import BernoulliDistribution
 from stable_baselines3 import PPO
 from gymnasium import spaces
-from typing import Dict, List, Optional, Tuple, Type, Union
 
 from team_transformer_model import TeamTransformerModel
 
@@ -131,7 +131,7 @@ class TransformerActorCriticPolicy(ActorCriticPolicy):
             **kwargs
         )
 
-    def _get_constructor_parameters(self) -> Dict[str, any]:
+    def _get_constructor_parameters(self) -> dict[str, Any]:
         data = super()._get_constructor_parameters()
         data.update(
             {
@@ -142,11 +142,9 @@ class TransformerActorCriticPolicy(ActorCriticPolicy):
         )
         return data
 
-
     def get_transformer_model(self) -> TeamTransformerModel:
         """Get the underlying transformer model for self-play memory."""
         return self.features_extractor.transformer
-
 
 
 def create_team_ppo_model(

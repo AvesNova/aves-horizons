@@ -363,7 +363,7 @@ class TestRandomAgentProvider:
 
     def test_random_agent_initialization(self):
         """Test random agent initialization."""
-        agent = RandomAgentProvider(seed=42)
+        agent = RandomAgentProvider(rng=np.random.default_rng(seed=42))
         assert agent.get_agent_type() == "random"
 
         # Test without seed
@@ -372,7 +372,7 @@ class TestRandomAgentProvider:
 
     def test_random_agent_actions(self):
         """Test random agent action generation."""
-        agent = RandomAgentProvider(seed=42)
+        agent = RandomAgentProvider(rng=np.random.default_rng(seed=42))
         sample_obs = {"tokens": torch.randn(3, 10)}
 
         ship_ids = [0, 1, 2]
@@ -391,8 +391,8 @@ class TestRandomAgentProvider:
 
     def test_random_agent_determinism(self):
         """Test that same seed produces same actions."""
-        agent1 = RandomAgentProvider(seed=123)
-        agent2 = RandomAgentProvider(seed=123)
+        agent1 = RandomAgentProvider(rng=np.random.default_rng(seed=123))
+        agent2 = RandomAgentProvider(rng=np.random.default_rng(seed=123))
 
         sample_obs = {"tokens": torch.randn(2, 10)}
         ship_ids = [0, 1]
@@ -601,7 +601,7 @@ class TestAgentActionConsistency:
         """Test that all agent types return consistent action formats."""
         agents = [
             create_scripted_agent((1200, 800)),
-            RandomAgentProvider(seed=42),
+            RandomAgentProvider(rng=np.random.default_rng(seed=42)),
         ]
 
         # Add RL agent with mock model
@@ -638,7 +638,7 @@ class TestAgentActionConsistency:
         """Test that action values are in expected ranges."""
         agents = [
             create_scripted_agent((1200, 800)),
-            RandomAgentProvider(seed=42),
+            RandomAgentProvider(rng=np.random.default_rng(seed=42)),
         ]
 
         ship_ids = [0, 1]
@@ -672,7 +672,7 @@ class TestAgentActionConsistency:
 
         agents = [
             create_scripted_agent((1200, 800)),
-            RandomAgentProvider(seed=42),
+            RandomAgentProvider(rng=np.random.default_rng(seed=42)),
         ]
 
         ship_ids = [0, 1]  # Request actions for both alive and dead ship
@@ -700,7 +700,7 @@ class TestAgentErrorRecovery:
             "alive": torch.tensor([[1]]),
         }
 
-        agent = RandomAgentProvider(seed=42)
+        agent = RandomAgentProvider(rng=np.random.default_rng(seed=42))
         ship_ids = [0]
 
         # Should handle gracefully without crashing
@@ -716,7 +716,7 @@ class TestAgentErrorRecovery:
 
         agents = [
             create_scripted_agent((1200, 800)),
-            RandomAgentProvider(seed=42),
+            RandomAgentProvider(rng=np.random.default_rng(seed=42)),
         ]
 
         for agent in agents:
@@ -734,7 +734,7 @@ class TestAgentErrorRecovery:
 
         agents = [
             create_scripted_agent((1200, 800)),
-            RandomAgentProvider(seed=42),
+            RandomAgentProvider(rng=np.random.default_rng(seed=42)),
         ]
 
         large_ship_ids = [10, 20, 100]  # Way beyond observation size

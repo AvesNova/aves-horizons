@@ -4,7 +4,7 @@ This shows the additions to the existing game_runner.py
 """
 
 import time
-from typing import Any, Optional
+from typing import Any
 import numpy as np
 import torch
 
@@ -26,7 +26,7 @@ class UnifiedGameRunner:
     def __init__(self, env_config: dict, team_assignments: dict[int, list[int]]):
         self.env_config = env_config
         self.team_assignments = team_assignments
-        self.env: Optional[Environment] = None
+        self.env: Environment | None = None
         self.agents: dict[int, Agent] = {}  # team_id -> Agent
 
         # Playback-specific state

@@ -29,10 +29,16 @@ class Agent(ABC):
 class ScriptedAgentProvider(Agent):
     """Provides scripted agent actions"""
 
-    def __init__(self, scripted_config: dict, world_size: tuple[int, int]):
+    def __init__(
+        self,
+        scripted_config: dict,
+        world_size: tuple[int, int],
+        rng: np.random.Generator = np.random.default_rng(),
+    ):
         self.agents: dict[int, ScriptedAgent] = {}
         self.scripted_config = scripted_config
         self.world_size = world_size
+        self.rng = rng
 
     def get_actions(
         self, obs_dict: dict, ship_ids: list[int]
@@ -177,8 +183,8 @@ class HumanAgentProvider(Agent):
 class RandomAgentProvider(Agent):
     """Provides random actions"""
 
-    def __init__(self, seed: int | None = None):
-        self.rng = np.random.default_rng(seed)
+    def __init__(self, rng: np.random.Generator = np.random.default_rng()):
+        self.rng = rng
 
     def get_actions(
         self, obs_dict: dict, ship_ids: list[int]
@@ -186,8 +192,10 @@ class RandomAgentProvider(Agent):
         actions = {}
         for ship_id in ship_ids:
             # Check if ship is alive (within observation bounds and alive==1)
-            if (ship_id < obs_dict.get("alive", torch.empty(0)).shape[0] and 
-                obs_dict.get("alive", torch.zeros(1, 1))[ship_id, 0].item() == 1):
+            if (
+                ship_id < obs_dict.get("alive", torch.empty(0)).shape[0]
+                and obs_dict.get("alive", torch.zeros(1, 1))[ship_id, 0].item() == 1
+            ):
                 # Ship is alive, generate random actions
                 actions[ship_id] = torch.from_numpy(self.rng.integers(0, 2, 6)).float()
             else:
@@ -202,11 +210,17 @@ class RandomAgentProvider(Agent):
 class SelfPlayAgentProvider(Agent):
     """Manages self-play with memory of past models"""
 
-    def __init__(self, team_controller, memory_size: int = 50):
+    def __init__(
+        self,
+        team_controller,
+        memory_size: int = 50,
+        rng: np.random.Generator = np.random.default_rng(),
+    ):
         self.team_controller = team_controller
         self.model_memory: list[dict] = []
         self.current_opponent = None
         self.memory_size = memory_size
+        self.rng = rng
 
     def add_model_to_memory(self, model):
         """Add a model snapshot to memory"""
@@ -226,10 +240,7 @@ class SelfPlayAgentProvider(Agent):
         # Create new model instance
         opponent_model = model_class(**model_config)
 
-        # Load random model from memory
-        import random
-
-        model_state = random.choice(self.model_memory)
+        model_state = self.rng.choice(self.model_memory)
         opponent_model.load_state_dict(model_state)
         opponent_model.eval()
 
