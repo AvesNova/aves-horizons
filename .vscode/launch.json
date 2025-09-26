@@ -20,7 +20,7 @@
             "args": [
                 "playback",
                 "--episode-file",
-                "data/bc_pretraining/1v1_episodes.pkl"
+                "data/bc_pretraining/1v1_episodes.pkl.gz"
             ]
         },
         {

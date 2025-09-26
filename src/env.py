@@ -164,7 +164,9 @@ class Environment(gym.Env):
         ships = team_0 | team_1
         return State(ships=ships)
 
-    def reset(self, game_mode: str = "1v1") -> tuple[dict, dict]:
+    def reset(
+        self, game_mode: str = "1v1", initial_obs: dict | None = None
+    ) -> tuple[dict, dict]:
         self.current_time = 0.0
         self.state.clear()
 
@@ -180,8 +182,68 @@ class Environment(gym.Env):
             self.state.append(self.n_vs_n_reset(ships_per_team=4))
         elif game_mode == "nvn":
             self.state.append(self.n_vs_n_reset(ships_per_team=None))
+        elif game_mode == "reset_from_observation":
+            self.state.append(self.reset_from_observation(initial_obs=initial_obs))
         else:
             raise ValueError(f"Unknown game mode: {game_mode}")
+
+        return self.get_observation(), {}
+
+    def reset_from_observation(self, initial_obs: dict) -> tuple[dict, dict]:
+        """Reset environment to match the state described by an observation dict"""
+        self.current_time = 0.0
+        self.state.clear()
+
+        ships = {}
+
+        num_ships = initial_obs["ship_id"].shape[0]
+
+        for i in range(num_ships):
+            alive = bool(initial_obs["alive"][i, 0].item())
+            if not alive:
+                continue
+
+            # Extract values for this ship (slice i)
+            ship_id = int(initial_obs["ship_id"][i, 0].item())
+            team_id = int(initial_obs["team_id"][i, 0].item())
+            health = float(initial_obs["health"][i, 0].item())
+            power = float(initial_obs["power"][i, 0].item())
+            position = initial_obs["position"][i, 0].item()  # complex64
+            velocity = initial_obs["velocity"][i, 0].item()  # complex64
+            speed = float(initial_obs["speed"][i, 0].item())
+            attitude = initial_obs["attitude"][i, 0].item()  # complex64
+            is_shooting = bool(initial_obs["is_shooting"][i, 0].item())
+
+            # Extract position and velocity components
+            initial_x = position.real
+            initial_y = position.imag
+            initial_vx = velocity.real
+            initial_vy = velocity.imag
+
+            # Create ship with default config and initial position/velocity
+            ship = Ship(
+                ship_id=ship_id,
+                team_id=team_id,
+                ship_config=default_ship_config,
+                initial_x=initial_x,
+                initial_y=initial_y,
+                initial_vx=initial_vx,
+                initial_vy=initial_vy,
+                world_size=self.world_size,
+            )
+
+            # Override ship state with values from observation
+            ship.alive = alive
+            ship.health = health
+            ship.power = power
+            ship.speed = speed
+            ship.attitude = attitude
+            ship.is_shooting = is_shooting
+
+            ships[ship_id] = ship
+
+        initial_state = State(ships=ships)
+        self.state.append(initial_state)
 
         return self.get_observation(), {}
 
