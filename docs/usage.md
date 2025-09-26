@@ -36,7 +36,7 @@ python src/collect_data.py human_play
 
 ```bash
 # Review replays
-python src/collect_data.py playback --episode-file data/bc_pretraining/1v1_episodes.pkl
+python src/collect_data.py playback --episode-file data/bc_pretraining/1v1_episodes.pkl.gz
 ```
 
 ## System Overview

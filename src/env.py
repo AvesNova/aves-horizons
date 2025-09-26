@@ -8,7 +8,7 @@ from gymnasium import spaces
 from bullets import Bullets
 from ship import Ship, default_ship_config
 from renderer import create_renderer
-from constants import Actions
+from constants import Actions, RewardConstants
 from state import State
 
 
@@ -17,7 +17,7 @@ class Environment(gym.Env):
         self,
         render_mode: str | None = None,
         world_size: tuple[int, int] = (1200, 800),
-        memory_size: int = 1,
+        memory_size: int = 2,
         max_ships: int = 2,
         agent_dt: float = 0.02,
         physics_dt: float = 0.02,
@@ -346,18 +346,22 @@ class Environment(gym.Env):
             # Death events (±0.1)
             if previous_ship.alive and not current_ship.alive:
                 if current_ship.team_id == team_id:
-                    reward -= 0.1  # Our ship died
+                    reward += RewardConstants.ALLY_DEATH_PENALTY  # Our ship died
                 else:
-                    reward += 0.1  # Enemy ship died
+                    reward += RewardConstants.ENEMY_DEATH_BONUS  # Enemy ship died
 
             # Damage events (±0.001 per damage point)
             elif previous_ship.alive and current_ship.alive:
                 damage_taken = previous_ship.health - current_ship.health
                 if damage_taken > 0:
                     if current_ship.team_id == team_id:
-                        reward -= 0.001 * damage_taken  # Our ship took damage
+                        reward -= (
+                            RewardConstants.DAMAGE_REWARD_SCALE * damage_taken
+                        )  # Our ship took damage
                     else:
-                        reward += 0.001 * damage_taken  # Enemy took damage
+                        reward += (
+                            RewardConstants.DAMAGE_REWARD_SCALE * damage_taken
+                        )  # Enemy took damage
 
         return reward
 
@@ -379,11 +383,13 @@ class Environment(gym.Env):
 
         # Determine outcome
         if our_ships_alive > 0 and enemy_ships_alive == 0:
-            return 1.0  # Victory
+            return RewardConstants.VICTORY_REWARD  # Victory
         elif our_ships_alive == 0 and enemy_ships_alive > 0:
-            return -1.0  # Defeat
+            return RewardConstants.DEFEAT_REWARD  # Defeat
         else:
-            return 0.0  # Draw (both dead or timeout with survivors on both sides)
+            return (
+                RewardConstants.DRAW_REWARD
+            )  # Draw (both dead or timeout with survivors on both sides)
 
     def _check_termination(self, state: State) -> tuple[bool, dict[int, bool]]:
         """Check if episode should terminate and which agents are done"""
