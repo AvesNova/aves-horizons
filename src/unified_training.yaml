@@ -122,7 +122,7 @@ scripted_agent:
 logging:
   wandb:
     enabled: false
-    project: "space-combat-unified"
+    project: "ship-combat-unified"
     tags: ["unified", "transformer"]
   
   tensorboard:

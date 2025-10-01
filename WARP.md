@@ -4,207 +4,277 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-Aves Horizons is a physics-based space combat simulation featuring transformer-based AI agents. The project combines reinforcement learning, behavior cloning, and sophisticated physics simulation to create intelligent multi-agent combat scenarios.
+**Boost and Broadside** is a physics-based ship combat simulation with transformer-based AI agents. This is a reinforcement learning (RL) research project implementing a custom Gymnasium environment where ships battle in 2D space using realistic physics (thrust, drag, lift). The core ML component is a transformer model that learns team coordination via behavior cloning (BC) pretraining followed by PPO RL training.
+
+**Package Name:** `aves-horizons`
 
 ## Development Commands
 
-### Testing
-```bash
-# Run all tests
-pytest
+### Setup and Installation
+```powershell
+# Create virtual environment (project uses ./venv/)
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 
-# Run specific test categories
+# Install package in development mode with dev dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+```powershell
+# Run all tests with pytest (preferred method)
+pytest tests
+
+# Run a specific test file
 pytest tests/test_environment_basics.py
-pytest tests/test_environment_physics.py
-pytest tests/test_environment_combat.py
-pytest tests/test_ship_physics.py
-pytest tests/test_ship_combat.py
+
+# Run a specific test function
+pytest tests/test_environment_basics.py::test_reset
 
 # Run tests with verbose output
-pytest -v
+pytest -v tests
 
-# Run tests with coverage
-pytest --tb=short -v
+# Run with short traceback (default configuration)
+pytest --tb=short tests
 ```
 
-### Training Pipeline
+### Training and Data Collection
 
-**Complete training pipeline (recommended):**
-```bash
-# 1. Collect BC training data
+#### Collect Behavior Cloning Data
+```powershell
+# Collect BC training data (scripted vs scripted)
 python src/collect_data.py collect_bc --config src/unified_training.yaml
+```
 
-# 2. Run full pipeline: BC pretraining → RL training → evaluation
+#### Train Models
+```powershell
+# Full pipeline: BC pretraining + RL training
 python src/unified_train.py full --config src/unified_training.yaml
 
-# 3. Evaluate the final model
-python src/collect_data.py evaluate_model --model checkpoints/unified_full_*/final_rl_model.zip
-```
-
-**Individual training phases:**
-```bash
-# Behavior cloning only
+# BC pretraining only
 python src/unified_train.py bc --config src/unified_training.yaml
 
-# RL training from scratch
+# RL training only (from scratch)
 python src/unified_train.py rl --config src/unified_training.yaml
 
-# RL training from BC model
-python src/unified_train.py rl --config src/unified_training.yaml \
-    --bc-model checkpoints/unified_bc_*/best_bc_model.pt
+# RL training from BC checkpoint
+python src/unified_train.py rl --config src/unified_training.yaml --bc-model checkpoints/bc_model.pt
 ```
 
-**Data collection:**
-```bash
-# Collect BC data (scripted vs scripted)
-python src/collect_data.py collect_bc --config src/unified_training.yaml
-
-# Collect self-play data
-python src/collect_data.py collect_selfplay --config src/unified_training.yaml
-```
-
-### Evaluation and Testing
-```bash
-# Evaluate a trained model
-python src/collect_data.py evaluate_model --model path/to/model.zip
-
-# Human play testing
+#### Human Play & Playback
+```powershell
+# Play against scripted opponent (requires pygame)
 python src/collect_data.py human_play
 
-# Compare multiple models
-for model in checkpoints/*/best_*.pt; do
-    echo "Evaluating $model"
-    python src/collect_data.py evaluate_model --model "$model"
-done
+# Replay recorded episode
+python src/collect_data.py playback --episode-file data/bc_pretraining/1v1_episodes.pkl.gz
 ```
 
-### Development Workflow
-```bash
-# Run from project root (required for imports)
-cd /path/to/aves-horizons
-python src/[script].py
+### Code Quality
+```powershell
+# Format code with black
+black src tests
 
-# Add src to Python path if needed
-export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
+# Check formatting without changes
+black --check src tests
 ```
 
-## High-Level Architecture
+## Architecture Overview
 
 ### Core System Components
 
-**Environment System (`env.py`)**
-- OpenAI Gym-compatible multi-agent environment
-- Physics simulation using implicit Euler
-- Supports 1v1, 2v2, 3v3, 4v4, and variable n-vs-n scenarios
-- Toroidal world boundaries with collision detection
-- Configurable timesteps: agent_dt (action frequency) and physics_dt (simulation accuracy)
+**Environment System (`env.py`, `state.py`)**
+- `Environment`: Main Gymnasium-compatible environment implementing the simulation loop
+- `State`: Immutable snapshot of game state (ships, bullets) at a given time
+- Physics runs at `physics_dt` (default 0.02s), agents act at `agent_dt` (default 0.04s)
+- Supports multiple game modes: 1v1, 2v2, 3v3, 4v4, nvn (variable team sizes)
+- Ships positioned using fractal pattern generation for multi-ship scenarios
+
+**Ship Physics (`ship.py`)**
+- Complex aerodynamic model with thrust, drag, and lift forces
+- Lookup tables for action combinations (forward/backward, left/right, sharp turn)
+- Power management system (boosting drains power, idling recharges)
+- Bullet firing with cooldown and energy cost
+- All ships must have non-zero initial velocity (enforced by assertion)
 
 **Agent System (`agents.py`)**
-- Pluggable architecture supporting multiple agent types:
-  - **ScriptedAgentProvider**: Sophisticated predictive targeting agents
-  - **RLAgentProvider**: Supports both transformer and PPO models
-  - **HumanAgentProvider**: Real-time human control via keyboard/mouse
-  - **SelfPlayAgentProvider**: Manages model memory for self-play training
-- Unified action interface across all agent types
+- Unified `Agent` interface: `get_actions(obs_dict, ship_ids) -> dict[int, Tensor]`
+- Multiple agent types:
+  - `ScriptedAgentProvider`: Rule-based targeting and maneuvering
+  - `RLAgentProvider`: Wraps trained transformer or PPO models
+  - `HumanAgentProvider`: Keyboard controls via pygame renderer
+  - `RandomAgentProvider`: Random action sampling
+  - `SelfPlayAgent`: Maintains memory of past model versions for self-play
+  - `PlaybackAgent`: Replays recorded episode actions
 
-**Training Pipeline (`unified_train.py`)**
-- Two-phase training: Behavior Cloning → Reinforcement Learning
-- Configurable opponent types: scripted, self-play, or mixed
-- Support for model initialization from BC pretraining
-- Integrated evaluation and checkpointing
+### Machine Learning Pipeline
 
-### Physics and Simulation
+**Transformer Model (`team_transformer_model.py`)**
+- `TeamTransformerModel`: Core neural network architecture
+  - Input: Ship tokens (10-dim vectors: health, power, position, velocity, attitude)
+  - Processing: Token projection → Multi-head self-attention → Action head
+  - Output: Action logits for all ships (6 binary actions per ship: forward, backward, left, right, sharp_turn, shoot)
+  - Uses attention masking to handle variable team sizes and dead ships
+- `TeamController`: Maps ship IDs to team assignments for multi-team control
 
-**Ship Dynamics (`ship.py`)**
-- Complex physics model with realistic aerodynamics
-- Attitude-based control system with velocity-relative turning
-- Energy management (boost/thrust consumption and regeneration)
-- Combat system with projectiles and health management
+**Training Pipeline (`unified_train.py`, `bc_training.py`)**
+1. **Phase 1: Behavior Cloning (BC)**
+   - Collect expert demonstrations (scripted vs scripted battles)
+   - Train transformer to imitate scripted agent via supervised learning
+   - Outputs: BC model checkpoint + training metrics
+   
+2. **Phase 2: Reinforcement Learning (PPO)**
+   - Initialize from BC model (optional but recommended)
+   - Train using Stable-Baselines3 PPO with custom transformer policy
+   - Opponent types: scripted, self-play, or mixed
+   - Self-play memory maintains pool of past model versions
 
-**State Representation (`state.py`)**
-- Centralized game state management
-- Token-based observations for transformer models
-- Normalized observations for consistent ML training
+**RL Wrapper (`rl_wrapper.py`)**
+- `UnifiedRLWrapper`: Bridges Environment with SB3's PPO
+  - Observation space: (max_ships, token_dim) token matrix
+  - Action space: MultiBinary for controlled ships' actions
+  - Handles team assignments and opponent switching
+  - Tracks win/loss statistics and episode types
 
-**Physics Integration**
-- Uses simple implicit Euler integration
-- Force-based dynamics with thrust, drag, and lift forces
+**Custom SB3 Policy (`transformer_policy.py`)**
+- `TransformerFeaturesExtractor`: Extracts ship embeddings via transformer
+- `TransformerActorCriticPolicy`: Actor-critic with transformer backbone
+- Integrates with PPO for policy gradient training
 
-### AI and Learning Architecture
+### Data Collection & Playback
 
-**Transformer-Based Models (`team_transformer_model.py`)**
-- Multi-agent transformer architecture treating ships as temporal tokens
-- Unified team control: single model predicts actions for entire team
-- Ship identity embeddings and temporal encoding
-- Supports both policy and value heads for RL training
+**Game Runner (`game_runner.py`)**
+- `UnifiedGameRunner`: Central orchestrator for all game modes
+  - Data collection for BC training
+  - Human play sessions
+  - Episode playback with speed control
+  - RL evaluation
+- Manages team assignments and agent coordination
 
-**Training Approaches**
-- **Behavior Cloning**: Learn from scripted agent demonstrations
-- **Reinforcement Learning**: PPO training with configurable opponents
-- **Self-Play**: Dynamic opponent memory with model versioning
-- **Mixed Training**: Combines scripted opponents and self-play
+**Data Collection (`collect_data.py`)**
+- Collects episodes with observations, actions, rewards, and outcomes
+- Computes Monte Carlo returns for BC training
+- Saves compressed episode files (`.pkl.gz`)
+- Supports checkpointing per game mode
 
-### Key Design Patterns
+## Project Structure
 
-**Multi-Agent Coordination**
-- Single forward pass generates coordinated actions for entire team
-- Opponent modeling through shared attention mechanisms
-- Implicit communication via shared model representations
+```
+src/
+├── env.py                      # Gymnasium environment
+├── state.py                    # Game state representation
+├── ship.py                     # Ship physics and configuration
+├── bullets.py                  # Bullet system
+├── constants.py                # Action indices, rewards, etc.
+├── agents.py                   # Unified agent interface
+├── scripted_agent.py           # Rule-based AI opponent
+├── team_transformer_model.py   # Core transformer architecture
+├── transformer_policy.py       # SB3 custom policy
+├── rl_wrapper.py               # RL training wrapper
+├── unified_train.py            # Training pipeline entry point
+├── bc_training.py              # Behavior cloning implementation
+├── collect_data.py             # Data collection entry point
+├── game_runner.py              # Game orchestration
+├── playback_agent.py           # Episode replay
+├── renderer.py                 # Pygame visualization
+├── callbacks.py                # Training callbacks (self-play, etc.)
+└── unified_training.yaml       # Default configuration
 
-**Modular Configuration**
-- YAML-based configuration system (`unified_training.yaml`)
-- Derived physics parameters (`derived_ship_parameters.yaml`)
-- Flexible training regimes and hyperparameter management
+tests/
+├── conftest.py                 # Shared fixtures
+├── test_environment_*.py       # Environment tests
+├── test_ship_*.py              # Ship physics tests
+├── test_bullets.py             # Bullet system tests
+├── test_agents_integration.py  # Agent system tests
+├── test_gym_compliance.py      # Gymnasium API compliance
+└── test_*.py                   # Additional test modules
+```
 
-**Scalable Architecture**
-- Supports variable team sizes (1v1 to 4v4)
-- Fractals-based ship positioning for balanced starts
-- Efficient batched physics simulation across multiple agents
+## Type Hinting Standards
 
-## Important Implementation Details
+- Use modern union syntax: `dict | None` instead of `Optional[Dict]`
+- Type hint all function parameters and return values
+- Complex types: `dict[int, torch.Tensor]`, `list[int]`, `tuple[float, float]`
 
-**Coordinate System**
-- Uses complex numbers for 2D positions and velocities
-- Attitude represented as unit complex numbers (direction vectors)
-- Turn offsets maintain persistent state for orientation control
+## Key Observations & Domain Knowledge
 
-**Action Space**
-- MultiBinary(6) actions: [forward, backward, left, right, sharp_turn, shoot]
-- Turn state lookup table using bit patterns for efficient processing
-- Instant response turning with velocity-relative attitude calculations
+### Observation Space Structure
+The observation dictionary contains:
+- `tokens`: (max_ships, 10) tensor of ship state vectors
+- `alive`: (max_ships, 1) binary alive/dead indicators
+- Additional keys for specific use cases
 
-**Training Data Flow**
-- BC training uses Monte Carlo returns for value function learning
-- RL training supports configurable opponent curricula
-- Self-play maintains rolling memory of previous model versions
+Ship token format (10 dimensions):
+1. Health (0-100)
+2. Power (0-100)
+3-6. Position and velocity (x, y, vx, vy)
+7-10. Attitude and other derived features
 
-**Performance Optimizations**
-- GPU-accelerated physics simulation
-- Vectorized operations across ship batches
-- Lazy-loaded rendering for headless training
-- Compressed data storage for large training datasets
+### Action Space
+6 binary actions per ship:
+- `forward` (0): Boost forward
+- `backward` (1): Reverse thrust
+- `left` (2): Turn left
+- `right` (3): Turn right
+- `sharp_turn` (4): Sharp turn modifier
+- `shoot` (5): Fire bullet
 
-## Configuration Management
+### Team Assignments
+Teams are represented as: `dict[int, list[int]]` where keys are team IDs and values are lists of ship IDs.
+Example: `{0: [0, 1], 1: [2, 3]}` means team 0 controls ships 0-1, team 1 controls ships 2-3.
 
-The project uses a hierarchical YAML configuration system:
+### Configuration System
+The project uses YAML configuration files (default: `src/unified_training.yaml`) for all hyperparameters:
+- Environment parameters (world size, time steps, max ships)
+- Model architecture (transformer dimensions, heads, layers)
+- Training parameters (learning rates, batch sizes, episodes)
+- Opponent configuration (scripted/self-play mix ratios)
 
-- **`src/unified_training.yaml`**: Main training configuration
-- **`src/derived_ship_parameters.yaml`**: Physics parameters derived from simulation
-- **`pytest.ini`**: Test configuration and filtering
+### Physics Simulation
+- Ships cannot be stationary (enforced in `Ship.__init__`)
+- Multiple physics substeps per agent decision for stability
+- Drag and lift coefficients vary by turn state
+- Power management creates strategic trade-offs (boost vs sustained fire)
 
-Key configuration sections:
-- `environment`: World size, timesteps, ship limits
-- `model`: Transformer architecture and training hyperparameters  
-- `training`: RL configuration, opponent types, evaluation frequency
-- `data_collection`: Episode counts, game modes, output directories
+### Self-Play System
+- Maintains memory buffer of past model checkpoints
+- Periodically updates opponent with current policy
+- Mixed opponent mode combines scripted and self-play for curriculum learning
+- `SelfPlayCallback` handles opponent updates during training
 
-## Testing Strategy
+## Common Development Tasks
 
-The test suite emphasizes physics accuracy and multi-agent correctness:
+### Adding a New Agent Type
+1. Create class inheriting from `Agent` in `agents.py`
+2. Implement `get_actions(obs_dict, ship_ids)` method
+3. Implement `get_agent_type()` method
+4. Add factory function `create_*_agent()` at bottom of file
 
-- **Environment tests**: Initialization, reset behavior, observation structure
-- **Physics tests**: Force calculations, integration accuracy, collision detection
-- **Combat tests**: Projectile mechanics, damage systems, health management
-- **Agent tests**: Action validation, team coordination, opponent interaction
+### Modifying Ship Physics
+1. Update `ShipConfig` dataclass in `ship.py`
+2. Modify force calculation in `Ship._calculate_forces()`
+3. Update lookup tables in `Ship._build_lookup_tables()` if needed
+4. Add tests in `tests/test_ship_physics.py`
 
-Tests use deterministic fixtures and configurable tolerances for reliable CI/CD integration.
+### Adding New Reward Signals
+1. Add reward constants to `constants.py`
+2. Implement reward calculation in `Environment.step()`
+3. Update reward tracking in game runners
+
+### Debugging Training Issues
+- Check tensorboard logs in `logs/` directory
+- Review checkpoint files in `checkpoints/` directory
+- Use human play mode to visualize agent behavior
+- Use playback mode to analyze specific episodes
+- Lower `agent_dt` or `physics_dt` if physics seems unstable
+
+## VSCode Configuration
+
+The project includes VSCode launch configurations (`.vscode/launch.json`):
+- **Play**: Launch human play mode
+- **Replay**: Playback recorded episodes
+- **Collect BC**: Collect behavior cloning data
+- **Train**: Run full training pipeline
+- **Current File**: Debug currently open file
+
+Default Python interpreter: `./venv/Scripts/python.exe`

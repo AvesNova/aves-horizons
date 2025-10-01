@@ -37,7 +37,7 @@ class GameRenderer:
                 pygame.display.init()
             
             self.screen = pygame.display.set_mode(self.world_size)
-            pygame.display.set_caption("Space Combat Environment")
+            pygame.display.set_caption("Ship Combat Environment")
             self.clock = pygame.time.Clock()
             self.font = pygame.font.Font(None, 36)
             self.initialized = True
